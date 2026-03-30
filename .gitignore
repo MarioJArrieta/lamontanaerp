@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.egg
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+nohup.out
+
+# Database
+*.sqlite
+*.db
+
+# Coverage
+htmlcov/
+.coverage
+.pytest_cache/
+
+# Alembic
+migrations/versions/__pycache__/

@@ -1,0 +1,52 @@
+import uuid
+from datetime import date
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.domain.aggregates.sale import Sale
+from app.domain.enums import SaleStatus
+from app.infrastructure.repositories.base_repository import BaseRepository
+
+
+class SaleRepository(BaseRepository[Sale]):
+    def __init__(self, session: AsyncSession) -> None:
+        super().__init__(session, Sale)
+
+    async def get_by_id_with_items(self, sale_id: uuid.UUID) -> Sale | None:
+        stmt = (
+            select(Sale)
+            .options(
+                selectinload(Sale.items),
+                selectinload(Sale.client),
+                selectinload(Sale.delivery_employee),
+            )
+            .where(Sale.id == sale_id)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_by_date_range(
+        self, from_date: date, to_date: date, status: SaleStatus | None = None
+    ) -> list[Sale]:
+        stmt = (
+            select(Sale)
+            .options(selectinload(Sale.items), selectinload(Sale.client))
+            .where(Sale.date >= from_date, Sale.date <= to_date)
+            .order_by(Sale.date.desc(), Sale.created_at.desc())
+        )
+        if status:
+            stmt = stmt.where(Sale.status == status)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_pending_delivery(self) -> list[Sale]:
+        stmt = (
+            select(Sale)
+            .options(selectinload(Sale.items), selectinload(Sale.client))
+            .where(Sale.status.in_([SaleStatus.PENDING, SaleStatus.ASSIGNED]))
+            .order_by(Sale.date)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
