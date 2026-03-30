@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { Plus, ShoppingCart, CircleDollarSign, Clock, FileText, Package } from 'lucide-react';
+import { Plus, ShoppingCart, FileText, Package } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -68,7 +68,7 @@ export default function Sales() {
   const filteredClients = useMemo(() => {
     if (!clientSearch.trim()) return clients;
     const q = clientSearch.toLowerCase();
-    return clients.filter(c => c.name.toLowerCase().includes(q) || c.zone?.toLowerCase().includes(q));
+    return clients.filter(c => c.name.toLowerCase().includes(q) || c.delivery_zone?.toLowerCase().includes(q));
   }, [clients, clientSearch]);
 
   useEffect(() => {
@@ -202,7 +202,7 @@ export default function Sales() {
                               className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${form.client_id === c.id ? 'bg-gray-50 font-medium' : ''}`}
                               onClick={() => { setForm({...form, client_id: c.id}); setClientDropOpen(false); setClientSearch(''); }}
                             >
-                              {c.name}{c.zone ? ` — ${c.zone}` : ''}
+                              {c.name}{c.delivery_zone ? ` — ${c.delivery_zone}` : ''}
                             </button>
                           ))}
                         </div>
