@@ -43,6 +43,17 @@ async def seed():
         except ValueError:
             print("Admin user already exists")
 
+        try:
+            await auth_service.create_user(
+                username="delivery",
+                password="delivery123",
+                full_name="Pedro Repartidor",
+                role=UserRole.DELIVERY,
+            )
+            print("Delivery user created: delivery / delivery123")
+        except ValueError:
+            print("Delivery user already exists")
+
         # ── Products ──
         product_service = ProductService(session)
         products = await product_service.get_all()
@@ -242,6 +253,7 @@ async def seed():
             sale1 = await sale_service.create_sale(
                 sale_date=today - timedelta(days=5),
                 client_id=client_tienda.id,
+                delivery_employee_id=emp_pedro.id,
                 items=[
                     {"product_id": paca_product.id, "quantity": 10},
                     {"product_id": botellon_product.id, "quantity": 3},
@@ -249,13 +261,13 @@ async def seed():
                 payment_type=PaymentType.CASH,
                 notes="Pedido semanal",
             )
-            await sale_service.assign_delivery(sale1.id, emp_pedro.id)
             await sale_service.mark_paid(sale1.id, PaymentMethod.CASH)
 
             # Sale 2: credit, pending
             sale2 = await sale_service.create_sale(
                 sale_date=today - timedelta(days=3),
                 client_id=client_supermercado.id,
+                delivery_employee_id=emp_pedro.id,
                 items=[
                     {"product_id": paca_product.id, "quantity": 25},
                     {"product_id": botellon_product.id, "quantity": 5},
@@ -263,12 +275,12 @@ async def seed():
                 payment_type=PaymentType.CREDIT,
                 notes="Pedido quincenal supermercado",
             )
-            await sale_service.assign_delivery(sale2.id, emp_pedro.id)
 
             # Sale 3: cash, pending
             sale3 = await sale_service.create_sale(
                 sale_date=today - timedelta(days=1),
                 client_id=client_tienda.id,
+                delivery_employee_id=emp_pedro.id,
                 items=[
                     {"product_id": paca_product.id, "quantity": 15},
                 ],
@@ -280,6 +292,7 @@ async def seed():
             sale4 = await sale_service.create_sale(
                 sale_date=today - timedelta(days=2),
                 client_id=client_supermercado.id,
+                delivery_employee_id=emp_pedro.id,
                 items=[
                     {"product_id": botellon_product.id, "quantity": 8},
                 ],
@@ -291,6 +304,7 @@ async def seed():
             sale5 = await sale_service.create_sale(
                 sale_date=today,
                 client_id=client_tienda.id,
+                delivery_employee_id=emp_pedro.id,
                 items=[
                     {"product_id": paca_product.id, "quantity": 20},
                     {"product_id": botellon_product.id, "quantity": 4},
