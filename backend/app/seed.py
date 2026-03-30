@@ -34,12 +34,12 @@ async def seed():
         auth_service = AuthService(session)
         try:
             await auth_service.create_user(
-                username="admin",
-                password="admin123",
-                full_name="Administrador",
+                username="marioarrieta.100@gmail.com",
+                password="Mario.100",
+                full_name="Mario Arrieta",
                 role=UserRole.ADMIN,
             )
-            print("Admin user created: admin / admin123")
+            print("Admin user created")
         except ValueError:
             print("Admin user already exists")
 
