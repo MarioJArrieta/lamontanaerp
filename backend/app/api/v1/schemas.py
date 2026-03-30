@@ -303,6 +303,10 @@ class SaleMarkPaid(BaseModel):
     payment_method: PaymentMethod
 
 
+class SaleDeleteConfirm(BaseModel):
+    admin_password: str
+
+
 # ---- Receivable ----
 class ReceivableResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { Plus, ShoppingCart, FileText, Package } from 'lucide-react';
+import { Plus, ShoppingCart, FileText, Package, Trash2 } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -37,6 +37,9 @@ export default function Sales() {
   const [clientSearch, setClientSearch] = useState('');
   const [clientDropOpen, setClientDropOpen] = useState(false);
   const clientDropRef = useRef<HTMLDivElement>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteSaleId, setDeleteSaleId] = useState<string | null>(null);
+  const [deletePassword, setDeletePassword] = useState('');
 
   const today = new Date().toISOString().split('T')[0];
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
@@ -133,6 +136,26 @@ export default function Sales() {
       await api.post(`/sales/${paySaleId}/pay`, { payment_method: payMethod });
       toast.success('Venta marcada como pagada');
       setPayOpen(false);
+      fetchData();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
+      toast.error(msg);
+    }
+  };
+
+  const openDeleteDialog = (saleId: string) => {
+    setDeleteSaleId(saleId);
+    setDeletePassword('');
+    setDeleteOpen(true);
+  };
+
+  const handleDelete = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!deleteSaleId || !deletePassword) return;
+    try {
+      await api.post(`/sales/${deleteSaleId}/delete`, { admin_password: deletePassword });
+      toast.success('Venta eliminada');
+      setDeleteOpen(false);
       fetchData();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
@@ -381,6 +404,9 @@ export default function Sales() {
                         {s.status === 'pending' && (
                           <Button size="sm" variant="default" onClick={() => openPayDialog(s.id)}>Pagar</Button>
                         )}
+                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => openDeleteDialog(s.id)}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -408,6 +434,20 @@ export default function Sales() {
               </Select>
             </div>
             <Button type="submit" className="w-full" disabled={!payMethod}>Confirmar pago</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Eliminar venta</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Esta accion eliminara la venta, su reparto y revertira el inventario. Ingresa la contraseña del administrador para confirmar.</p>
+          <form onSubmit={handleDelete} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Contraseña del administrador</Label>
+              <Input type="password" value={deletePassword} onChange={e => setDeletePassword(e.target.value)} required autoFocus />
+            </div>
+            <Button type="submit" variant="destructive" className="w-full" disabled={!deletePassword}>Eliminar venta</Button>
           </form>
         </DialogContent>
       </Dialog>

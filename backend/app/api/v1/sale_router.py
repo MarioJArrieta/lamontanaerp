@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.schemas import SaleAssignDelivery, SaleCreate, SaleMarkPaid, SaleResponse
+from app.api.v1.schemas import SaleAssignDelivery, SaleCreate, SaleDeleteConfirm, SaleMarkPaid, SaleResponse
 from app.application.services.sale_service import SaleService
 from app.auth.dependencies import get_current_user, require_role
 from app.domain.aggregates.user import User
@@ -87,5 +87,19 @@ async def mark_paid(
     service = SaleService(db)
     try:
         return await service.mark_paid(sale_id, body.payment_method)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/{sale_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_sale(
+    sale_id: uuid.UUID,
+    body: SaleDeleteConfirm,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: AdminOrSecretary,
+):
+    service = SaleService(db)
+    try:
+        await service.delete_sale(sale_id, body.admin_password)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

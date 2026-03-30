@@ -2,12 +2,16 @@ import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 
+from sqlalchemy import delete as sa_delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.security import verify_password
 from app.domain.aggregates.delivery import Delivery
+from app.domain.aggregates.inventory import InventoryMovement
 from app.domain.aggregates.receivable import Receivable
 from app.domain.aggregates.sale import Sale
 from app.domain.aggregates.sale_item import SaleItem
+from app.domain.aggregates.user import User
 from app.domain.enums import (
     DeliveryStatus,
     InventoryMovementType,
@@ -15,6 +19,7 @@ from app.domain.enums import (
     PaymentType,
     ReceivableStatus,
     SaleStatus,
+    UserRole,
 )
 from app.config import get_settings
 from app.infrastructure.repositories import (
@@ -191,3 +196,42 @@ class SaleService:
                 await self.session.flush()
 
         return sale
+
+    async def delete_sale(self, sale_id: uuid.UUID, admin_password: str) -> None:
+        # Verify admin password
+        stmt = select(User).where(User.role == UserRole.ADMIN)
+        result = await self.session.execute(stmt)
+        admin = result.scalar_one_or_none()
+        if not admin or not verify_password(admin_password, admin.hashed_password):
+            raise ValueError("Contraseña de administrador incorrecta")
+
+        sale = await self.sale_repo.get_by_id_with_items(sale_id)
+        if not sale:
+            raise ValueError("Venta no encontrada")
+
+        # Restore inventory for each item
+        for item in sale.items:
+            await self.inventory_repo.adjust(
+                product_id=item.product_id,
+                quantity=item.quantity,
+                movement_type=InventoryMovementType.ADJUSTMENT,
+                reference_id=sale.id,
+                notes=f"Reversal: sale deleted",
+            )
+
+        # Delete related records
+        await self.session.execute(
+            sa_delete(InventoryMovement).where(InventoryMovement.reference_id == sale_id)
+        )
+        await self.session.execute(
+            sa_delete(Delivery).where(Delivery.sale_id == sale_id)
+        )
+        await self.session.execute(
+            sa_delete(Receivable).where(Receivable.sale_id == sale_id)
+        )
+        await self.session.execute(
+            sa_delete(SaleItem).where(SaleItem.sale_id == sale_id)
+        )
+        await self.session.execute(
+            sa_delete(Sale).where(Sale.id == sale_id)
+        )
