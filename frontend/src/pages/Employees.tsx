@@ -39,15 +39,19 @@ export default function Employees() {
     try {
       if (editId) {
         await api.put(`/employees/${editId}`, {
-          name: form.name, phone: form.phone || null,
-          fixed_salary: form.fixed_salary || null,
-          rate_per_paca: form.rate_per_paca || null,
+          name: form.name,
+          phone: form.phone || null,
+          fixed_salary: form.fixed_salary ? Number(form.fixed_salary) : null,
+          rate_per_paca: form.rate_per_paca ? Number(form.rate_per_paca) : null,
         });
       } else {
         await api.post('/employees', {
-          ...form,
-          fixed_salary: form.fixed_salary || null,
-          rate_per_paca: form.rate_per_paca || null,
+          name: form.name,
+          cedula: form.cedula,
+          role: form.role,
+          pay_period: form.pay_period,
+          fixed_salary: form.fixed_salary ? Number(form.fixed_salary) : null,
+          rate_per_paca: form.rate_per_paca ? Number(form.rate_per_paca) : null,
           phone: form.phone || null,
         });
       }
@@ -106,13 +110,13 @@ export default function Employees() {
                   </div>
                   <div className="space-y-2">
                     <Label>Cedula</Label>
-                    <Input value={form.cedula} onChange={e => setForm({...form, cedula: e.target.value})} required />
+                    <Input value={form.cedula} onChange={e => setForm({...form, cedula: e.target.value})} required disabled={!!editId} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Rol</Label>
-                    <Select value={form.role} onValueChange={v => setForm({...form, role: sv(v), pay_period: sv(v) === 'secretary' ? 'monthly' : 'weekly'})}>
+                    <Select value={form.role} onValueChange={v => setForm({...form, role: sv(v), pay_period: sv(v) === 'secretary' ? 'monthly' : 'weekly'})} disabled={!!editId}>
                       <SelectTrigger><SelectValue>{(v: string) => roleLabel[v] || v}</SelectValue></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="packer">Empacador</SelectItem>
@@ -123,7 +127,7 @@ export default function Employees() {
                   </div>
                   <div className="space-y-2">
                     <Label>Periodo de pago</Label>
-                    <Select value={form.pay_period} onValueChange={v => setForm({...form, pay_period: sv(v)})}>
+                    <Select value={form.pay_period} onValueChange={v => setForm({...form, pay_period: sv(v)})} disabled={!!editId}>
                       <SelectTrigger><SelectValue>{(v: string) => payPeriodLabel[v] || v}</SelectValue></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="weekly">Semanal</SelectItem>
