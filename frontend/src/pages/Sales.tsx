@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { Plus, ShoppingCart, FileText, Package, Trash2 } from 'lucide-react';
+import { Plus, ShoppingCart, FileText, Package, Trash2, Eye } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -42,6 +42,7 @@ export default function Sales() {
   const [deleteSaleId, setDeleteSaleId] = useState<string | null>(null);
   const [deletePassword, setDeletePassword] = useState('');
   const [saving, setSaving] = useState(false);
+  const [detailSale, setDetailSale] = useState<Sale | null>(null);
 
   const today = new Date().toISOString().split('T')[0];
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
@@ -401,7 +402,12 @@ export default function Sales() {
                   <TableRow key={s.id}>
                     <TableCell>{s.date}</TableCell>
                     <TableCell className="font-medium">{clientMap.get(s.client_id)?.name || '-'}</TableCell>
-                    <TableCell>{s.items.length} items</TableCell>
+                    <TableCell className="text-xs">
+                      {s.items.slice(0, 2).map((item, i) => (
+                        <span key={i}>{i > 0 && ', '}{item.quantity} {productMap.get(item.product_id)?.name || 'Producto'}</span>
+                      ))}
+                      {s.items.length > 2 && <span className="text-muted-foreground"> +{s.items.length - 2} más</span>}
+                    </TableCell>
                     <TableCell className="font-semibold">{formatMoney(s.total)}</TableCell>
                     <TableCell><Badge variant="outline">{paymentLabel[s.payment_type] || s.payment_type}</Badge></TableCell>
                     <TableCell>{s.delivery_employee_id ? (employees.find(e => e.id === s.delivery_employee_id)?.name || '-') : <span className="text-muted-foreground">Sin asignar</span>}</TableCell>
@@ -409,6 +415,9 @@ export default function Sales() {
                     <TableCell>{s.payment_method ? methodLabel[s.payment_method] : '-'}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => setDetailSale(s)} title="Ver productos">
+                          <Eye className="w-3.5 h-3.5" />
+                        </Button>
                         <Button size="sm" variant="outline" onClick={() => handleInvoice(s)}>
                           <FileText className="w-3.5 h-3.5 mr-1" />Factura
                         </Button>
@@ -460,6 +469,44 @@ export default function Sales() {
             </div>
             <SubmitButton loading={saving} variant="destructive" className="w-full" disabled={!deletePassword}>Eliminar venta</SubmitButton>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!detailSale} onOpenChange={() => setDetailSale(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Detalle de venta</DialogTitle></DialogHeader>
+          {detailSale && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                {detailSale.date} — {clientMap.get(detailSale.client_id)?.name || 'Cliente'}
+              </p>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Producto</TableHead>
+                    <TableHead className="text-right">Cant.</TableHead>
+                    <TableHead className="text-right">Precio</TableHead>
+                    <TableHead className="text-right">Subtotal</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {detailSale.items.map((item, i) => (
+                    <TableRow key={i}>
+                      <TableCell>{productMap.get(item.product_id)?.name || 'Producto'}</TableCell>
+                      <TableCell className="text-right">{item.quantity}</TableCell>
+                      <TableCell className="text-right">{formatMoney(item.unit_price)}</TableCell>
+                      <TableCell className="text-right font-medium">{formatMoney(item.subtotal)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <div className="flex justify-between items-center pt-2 border-t">
+                <span className="font-medium">Total</span>
+                <span className="text-lg font-bold">{formatMoney(detailSale.total)}</span>
+              </div>
+              <Button variant="outline" className="w-full" onClick={() => setDetailSale(null)}>Cerrar</Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -93,8 +93,10 @@ export default function Clients() {
     setMapOpen(true);
   };
 
+  const [savingLocation, setSavingLocation] = useState(false);
   const handleSaveLocation = async () => {
     if (!mapClient || mapLat === null || mapLng === null) return;
+    setSavingLocation(true);
     try {
       await api.put(`/clients/${mapClient.id}`, { latitude: mapLat, longitude: mapLng });
       toast.success('Ubicacion guardada');
@@ -102,6 +104,8 @@ export default function Clients() {
       fetchData();
     } catch {
       toast.error('Error al guardar ubicacion');
+    } finally {
+      setSavingLocation(false);
     }
   };
 
@@ -272,9 +276,9 @@ export default function Clients() {
             </p>
           )}
           <div className="flex gap-2">
-            <Button className="flex-1" onClick={handleSaveLocation} disabled={mapLat === null || mapLng === null}>
+            <SubmitButton loading={savingLocation} className="flex-1" onClick={handleSaveLocation} disabled={mapLat === null || mapLng === null} type="button">
               Guardar ubicacion
-            </Button>
+            </SubmitButton>
             {mapLat !== null && (
               <Button variant="outline" onClick={() => { setMapLat(null); setMapLng(null); }}>
                 Limpiar
