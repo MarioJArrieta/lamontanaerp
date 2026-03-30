@@ -10,6 +10,8 @@ from app.infrastructure.repositories.receivable_repository import ReceivableRepo
 from app.infrastructure.repositories.delivery_repository import DeliveryRepository
 from app.infrastructure.repositories.payroll_repository import PayrollRepository, AdvanceRepository
 from app.infrastructure.repositories.company_settings_repository import CompanySettingsRepository
+from app.infrastructure.repositories.expense_repository import ExpenseRepository
+from app.infrastructure.repositories.other_income_repository import OtherIncomeRepository
 
 __all__ = [
     "UserRepository",
@@ -25,4 +27,6 @@ __all__ = [
     "PayrollRepository",
     "AdvanceRepository",
     "CompanySettingsRepository",
+    "ExpenseRepository",
+    "OtherIncomeRepository",
 ]

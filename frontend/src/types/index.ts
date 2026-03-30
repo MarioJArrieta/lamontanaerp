@@ -183,3 +183,32 @@ export interface CompanySettings {
   address: string | null;
   logo_url: string | null;
 }
+
+export interface Expense {
+  id: string;
+  date: string;
+  category: 'raw_material' | 'services' | 'transport' | 'payroll' | 'other';
+  description: string;
+  amount: string;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface OtherIncome {
+  id: string;
+  date: string;
+  category: 'rental' | 'interest' | 'refund' | 'subsidy' | 'other';
+  description: string;
+  amount: string;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface FinanceKPIs {
+  total_expenses: number;
+  total_sales: number;
+  total_other_income: number;
+  total_income: number;
+  balance: number;
+  expense_by_category: Record<string, number>;
+}

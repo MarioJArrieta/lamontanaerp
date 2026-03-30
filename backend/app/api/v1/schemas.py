@@ -1,6 +1,7 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -8,6 +9,8 @@ from app.domain.enums import (
     ClientType,
     DeliveryStatus,
     EmployeeRole,
+    ExpenseCategory,
+    IncomeCategory,
     InventoryMovementType,
     PaymentMethod,
     PaymentType,
@@ -399,3 +402,69 @@ class CompanySettingsResponse(BaseModel):
     phone: str | None
     address: str | None
     logo_url: str | None
+
+
+# ---- Expense ----
+class ExpenseCreate(BaseModel):
+    date: date
+    category: ExpenseCategory
+    description: str
+    amount: Decimal
+    notes: str | None = None
+
+
+class ExpenseUpdate(BaseModel):
+    date: Optional[date] = None
+    category: ExpenseCategory | None = None
+    description: str | None = None
+    amount: Decimal | None = None
+    notes: str | None = None
+
+
+class ExpenseResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    date: date
+    category: ExpenseCategory
+    description: str
+    amount: Decimal
+    notes: str | None
+    created_at: datetime
+
+
+# ---- Other Income ----
+class OtherIncomeCreate(BaseModel):
+    date: date
+    category: IncomeCategory
+    description: str
+    amount: Decimal
+    notes: str | None = None
+
+
+class OtherIncomeUpdate(BaseModel):
+    date: Optional[date] = None
+    category: IncomeCategory | None = None
+    description: str | None = None
+    amount: Decimal | None = None
+    notes: str | None = None
+
+
+class OtherIncomeResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    date: date
+    category: IncomeCategory
+    description: str
+    amount: Decimal
+    notes: str | None
+    created_at: datetime
+
+
+# ---- Finance KPIs ----
+class FinanceKPIsResponse(BaseModel):
+    total_expenses: float
+    total_sales: float
+    total_other_income: float
+    total_income: float
+    balance: float
+    expense_by_category: dict[str, float]

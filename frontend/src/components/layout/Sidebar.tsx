@@ -14,6 +14,9 @@ import {
   LogOut,
   Droplets,
   Settings,
+  Receipt,
+  HandCoins,
+  BarChart3,
 } from 'lucide-react';
 import { clearAuth, getUser } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -21,19 +24,41 @@ import { Separator } from '@/components/ui/separator';
 
 type Role = 'admin' | 'secretary' | 'delivery';
 
-const navItems: { to: string; icon: typeof LayoutDashboard; label: string; roles: Role[] }[] = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'secretary'] },
-  { to: '/employees', icon: Users, label: 'Empleados', roles: ['admin'] },
-  { to: '/products', icon: Package, label: 'Productos', roles: ['admin', 'secretary'] },
-  { to: '/clients', icon: UserCircle, label: 'Clientes', roles: ['admin', 'secretary'] },
-  { to: '/bobinas', icon: Cylinder, label: 'Bobinas', roles: ['admin'] },
-  { to: '/production', icon: Factory, label: 'Produccion', roles: ['admin', 'secretary'] },
-  { to: '/inventory', icon: Warehouse, label: 'Inventario', roles: ['admin', 'secretary'] },
-  { to: '/sales', icon: ShoppingCart, label: 'Ventas', roles: ['admin', 'secretary'] },
-  { to: '/receivables', icon: CreditCard, label: 'Cuentas x Cobrar', roles: ['admin', 'secretary'] },
-  { to: '/deliveries', icon: Truck, label: 'Repartos', roles: ['admin', 'secretary', 'delivery'] },
-  { to: '/payroll', icon: Wallet, label: 'Nomina', roles: ['admin'] },
-  { to: '/settings', icon: Settings, label: 'Configuracion', roles: ['admin'] },
+type NavItem = { to: string; icon: typeof LayoutDashboard; label: string; roles: Role[] };
+type NavSection = { title?: string; roles: Role[]; items: NavItem[] };
+
+const navSections: NavSection[] = [
+  {
+    roles: ['admin', 'secretary', 'delivery'],
+    items: [
+      { to: '/', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'secretary'] },
+      { to: '/employees', icon: Users, label: 'Empleados', roles: ['admin'] },
+      { to: '/products', icon: Package, label: 'Productos', roles: ['admin', 'secretary'] },
+      { to: '/clients', icon: UserCircle, label: 'Clientes', roles: ['admin', 'secretary'] },
+      { to: '/bobinas', icon: Cylinder, label: 'Bobinas', roles: ['admin'] },
+      { to: '/production', icon: Factory, label: 'Produccion', roles: ['admin', 'secretary'] },
+      { to: '/inventory', icon: Warehouse, label: 'Inventario', roles: ['admin', 'secretary'] },
+      { to: '/sales', icon: ShoppingCart, label: 'Ventas', roles: ['admin', 'secretary'] },
+      { to: '/receivables', icon: CreditCard, label: 'Cuentas x Cobrar', roles: ['admin', 'secretary'] },
+      { to: '/deliveries', icon: Truck, label: 'Repartos', roles: ['admin', 'secretary', 'delivery'] },
+      { to: '/payroll', icon: Wallet, label: 'Nomina', roles: ['admin'] },
+    ],
+  },
+  {
+    title: 'Gastos e Ingresos',
+    roles: ['admin'],
+    items: [
+      { to: '/expenses', icon: Receipt, label: 'Gastos', roles: ['admin'] },
+      { to: '/other-income', icon: HandCoins, label: 'Otros Ingresos', roles: ['admin'] },
+      { to: '/finance-kpis', icon: BarChart3, label: 'KPIs Financieros', roles: ['admin'] },
+    ],
+  },
+  {
+    roles: ['admin'],
+    items: [
+      { to: '/settings', icon: Settings, label: 'Configuracion', roles: ['admin'] },
+    ],
+  },
 ];
 
 export default function Sidebar() {
@@ -61,24 +86,39 @@ export default function Sidebar() {
 
       <Separator className="bg-sidebar-border" />
 
-      <nav className="flex-1 p-3 space-y-1">
-        {navItems.filter(item => item.roles.includes((user?.role || 'admin') as Role)).map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === '/'}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                isActive
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'
-              }`
-            }
-          >
-            <item.icon className="w-4.5 h-4.5" />
-            {item.label}
-          </NavLink>
-        ))}
+      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+        {navSections
+          .filter(section => section.roles.includes((user?.role || 'admin') as Role))
+          .map((section, idx) => {
+            const visibleItems = section.items.filter(item => item.roles.includes((user?.role || 'admin') as Role));
+            if (visibleItems.length === 0) return null;
+            return (
+              <div key={idx}>
+                {section.title && (
+                  <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                    {section.title}
+                  </p>
+                )}
+                {visibleItems.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.to === '/'}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                        isActive
+                          ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+                          : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'
+                      }`
+                    }
+                  >
+                    <item.icon className="w-4.5 h-4.5" />
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            );
+          })}
       </nav>
 
       <Separator className="bg-sidebar-border" />

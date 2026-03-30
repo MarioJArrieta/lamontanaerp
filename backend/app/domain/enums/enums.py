@@ -88,3 +88,11 @@ class ReceivableStatus(str, enum.Enum):
     PENDING = "pending"
     PAID = "paid"
     OVERDUE = "overdue"
+
+
+class IncomeCategory(str, enum.Enum):
+    RENTAL = "rental"
+    INTEREST = "interest"
+    REFUND = "refund"
+    SUBSIDY = "subsidy"
+    OTHER = "other"

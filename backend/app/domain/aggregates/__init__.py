@@ -13,6 +13,8 @@ from app.domain.aggregates.receivable import Receivable
 from app.domain.aggregates.delivery import Delivery
 from app.domain.aggregates.payroll import Payroll, Advance
 from app.domain.aggregates.company_settings import CompanySettings
+from app.domain.aggregates.expense import Expense
+from app.domain.aggregates.other_income import OtherIncome
 
 __all__ = [
     "Base",
@@ -32,4 +34,6 @@ __all__ = [
     "Payroll",
     "Advance",
     "CompanySettings",
+    "Expense",
+    "OtherIncome",
 ]
