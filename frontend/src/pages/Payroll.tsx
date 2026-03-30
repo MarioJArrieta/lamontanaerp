@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { SubmitButton } from '@/components/ui/submit-button';
 import api from '@/lib/api';
 import { sv } from '@/lib/helpers';
 import type { Payroll as PayrollType, Employee } from '@/types';
@@ -27,6 +28,7 @@ export default function Payroll() {
   const [loading, setLoading] = useState(true);
   const [openCalc, setOpenCalc] = useState(false);
   const [openAdv, setOpenAdv] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const today = new Date().toISOString().split('T')[0];
   const threeMonthsAgo = new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];
@@ -66,6 +68,7 @@ export default function Payroll() {
 
   const handleCalculate = async (e: FormEvent) => {
     e.preventDefault();
+    setSaving(true);
     try {
       await api.post('/payroll/calculate', {
         employee_id: calcForm.employee_id,
@@ -81,11 +84,14 @@ export default function Payroll() {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
       toast.error(msg);
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleAdvance = async (e: FormEvent) => {
     e.preventDefault();
+    setSaving(true);
     try {
       await api.post('/payroll/advances', {
         employee_id: advForm.employee_id,
@@ -99,6 +105,8 @@ export default function Payroll() {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
       toast.error(msg);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -154,7 +162,7 @@ export default function Payroll() {
                     <Label>Notas</Label>
                     <Input value={advForm.notes} onChange={e => setAdvForm({...advForm, notes: e.target.value})} />
                   </div>
-                  <Button type="submit" className="w-full">Registrar adelanto</Button>
+                  <SubmitButton loading={saving} className="w-full">Registrar adelanto</SubmitButton>
                 </form>
               </DialogContent>
             </Dialog>
@@ -193,7 +201,7 @@ export default function Payroll() {
                     <Label>Notas</Label>
                     <Input value={calcForm.notes} onChange={e => setCalcForm({...calcForm, notes: e.target.value})} />
                   </div>
-                  <Button type="submit" className="w-full">Calcular</Button>
+                  <SubmitButton loading={saving} className="w-full">Calcular</SubmitButton>
                 </form>
               </DialogContent>
             </Dialog>

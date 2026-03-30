@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { SubmitButton } from '@/components/ui/submit-button';
 import api from '@/lib/api';
 import { sv } from '@/lib/helpers';
 import type { Sale, Client, Product, Employee, CompanySettings } from '@/types';
@@ -40,6 +41,7 @@ export default function Sales() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteSaleId, setDeleteSaleId] = useState<string | null>(null);
   const [deletePassword, setDeletePassword] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const today = new Date().toISOString().split('T')[0];
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
@@ -99,6 +101,7 @@ export default function Sales() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setSaving(true);
     try {
       await api.post('/sales', {
         date: form.date,
@@ -120,6 +123,8 @@ export default function Sales() {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
       toast.error(msg);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -132,6 +137,7 @@ export default function Sales() {
   const handlePay = async (e: FormEvent) => {
     e.preventDefault();
     if (!paySaleId || !payMethod) return;
+    setSaving(true);
     try {
       await api.post(`/sales/${paySaleId}/pay`, { payment_method: payMethod });
       toast.success('Venta marcada como pagada');
@@ -140,6 +146,8 @@ export default function Sales() {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
       toast.error(msg);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -152,6 +160,7 @@ export default function Sales() {
   const handleDelete = async (e: FormEvent) => {
     e.preventDefault();
     if (!deleteSaleId || !deletePassword) return;
+    setSaving(true);
     try {
       await api.post(`/sales/${deleteSaleId}/delete`, { admin_password: deletePassword });
       toast.success('Venta eliminada');
@@ -160,6 +169,8 @@ export default function Sales() {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
       toast.error(msg);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -303,7 +314,7 @@ export default function Sales() {
                   <Label>Notas</Label>
                   <Input value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} />
                 </div>
-                <Button type="submit" className="w-full">Crear venta</Button>
+                <SubmitButton loading={saving} className="w-full">Crear venta</SubmitButton>
               </form>
             </DialogContent>
           </Dialog>
@@ -433,7 +444,7 @@ export default function Sales() {
                 </SelectContent>
               </Select>
             </div>
-            <Button type="submit" className="w-full" disabled={!payMethod}>Confirmar pago</Button>
+            <SubmitButton loading={saving} className="w-full" disabled={!payMethod}>Confirmar pago</SubmitButton>
           </form>
         </DialogContent>
       </Dialog>
@@ -447,7 +458,7 @@ export default function Sales() {
               <Label>Contraseña del administrador</Label>
               <Input type="password" value={deletePassword} onChange={e => setDeletePassword(e.target.value)} required autoFocus />
             </div>
-            <Button type="submit" variant="destructive" className="w-full" disabled={!deletePassword}>Eliminar venta</Button>
+            <SubmitButton loading={saving} variant="destructive" className="w-full" disabled={!deletePassword}>Eliminar venta</SubmitButton>
           </form>
         </DialogContent>
       </Dialog>

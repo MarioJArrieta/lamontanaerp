@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { SubmitButton } from '@/components/ui/submit-button';
 import api from '@/lib/api';
 import { sv } from '@/lib/helpers';
 import type { Sale, Client, Employee } from '@/types';
@@ -36,6 +37,7 @@ export default function Receivables() {
   const [payOpen, setPayOpen] = useState(false);
   const [paySaleId, setPaySaleId] = useState<string | null>(null);
   const [payMethod, setPayMethod] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const fetchData = () => {
     setLoading(true);
@@ -60,6 +62,7 @@ export default function Receivables() {
   const handlePay = async (e: FormEvent) => {
     e.preventDefault();
     if (!paySaleId || !payMethod) return;
+    setSaving(true);
     try {
       await api.post(`/sales/${paySaleId}/pay`, { payment_method: payMethod });
       toast.success('Pago registrado');
@@ -68,6 +71,8 @@ export default function Receivables() {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
       toast.error(msg);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -155,7 +160,7 @@ export default function Receivables() {
                 </SelectContent>
               </Select>
             </div>
-            <Button type="submit" className="w-full" disabled={!payMethod}>Confirmar pago</Button>
+            <SubmitButton loading={saving} className="w-full" disabled={!payMethod}>Confirmar pago</SubmitButton>
           </form>
         </DialogContent>
       </Dialog>

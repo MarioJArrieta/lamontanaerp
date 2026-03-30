@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { SubmitButton } from '@/components/ui/submit-button';
 import api from '@/lib/api';
 import { sv } from '@/lib/helpers';
 import type { Client } from '@/types';
@@ -24,6 +25,7 @@ export default function Clients() {
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [mapClient, setMapClient] = useState<Client | null>(null);
   const [mapLat, setMapLat] = useState<number | null>(null);
@@ -41,6 +43,7 @@ export default function Clients() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setSaving(true);
     try {
       if (editId) {
         await api.put(`/clients/${editId}`, {
@@ -68,6 +71,8 @@ export default function Clients() {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
       toast.error(msg);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -168,7 +173,7 @@ export default function Clients() {
                     <Input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
                   </div>
                 </div>
-                <Button type="submit" className="w-full">{editId ? 'Guardar' : 'Crear'}</Button>
+                <SubmitButton loading={saving} className="w-full">{editId ? 'Guardar' : 'Crear'}</SubmitButton>
               </form>
             </DialogContent>
           </Dialog>

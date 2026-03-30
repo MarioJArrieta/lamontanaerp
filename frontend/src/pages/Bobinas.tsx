@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { SubmitButton } from '@/components/ui/submit-button';
 import api from '@/lib/api';
 import type { Bobina } from '@/types';
 
@@ -23,6 +24,7 @@ export default function Bobinas() {
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const today = new Date().toISOString().split('T')[0];
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ code: '', purchase_date: today, weight_kg: '', cost: '', estimated_pacas: '250', supplier: '', notes: '' });
 
   const fetchData = () => {
@@ -32,6 +34,7 @@ export default function Bobinas() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setSaving(true);
     try {
       if (editId) {
         await api.put(`/bobinas/${editId}`, {
@@ -62,6 +65,8 @@ export default function Bobinas() {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
       toast.error(msg);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -136,7 +141,7 @@ export default function Bobinas() {
                   <Label>Notas</Label>
                   <Input value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} />
                 </div>
-                <Button type="submit" className="w-full">{editId ? 'Guardar' : 'Registrar'}</Button>
+                <SubmitButton loading={saving} className="w-full">{editId ? 'Guardar' : 'Registrar'}</SubmitButton>
               </form>
             </DialogContent>
           </Dialog>

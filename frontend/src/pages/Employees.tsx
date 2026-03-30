@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { SubmitButton } from '@/components/ui/submit-button';
 import api from '@/lib/api';
 import { sv } from '@/lib/helpers';
 import type { Employee } from '@/types';
@@ -24,6 +25,7 @@ export default function Employees() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: '', cedula: '', role: 'packer', pay_period: 'weekly',
     fixed_salary: '', rate_per_paca: '', phone: '',
@@ -36,6 +38,7 @@ export default function Employees() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setSaving(true);
     try {
       if (editId) {
         await api.put(`/employees/${editId}`, {
@@ -63,6 +66,8 @@ export default function Employees() {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error al crear';
       toast.error(msg);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -151,7 +156,7 @@ export default function Employees() {
                   <Label>Telefono (opcional)</Label>
                   <Input value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
                 </div>
-                <Button type="submit" className="w-full">{editId ? 'Guardar' : 'Crear'}</Button>
+                <SubmitButton loading={saving} className="w-full">{editId ? 'Guardar' : 'Crear'}</SubmitButton>
               </form>
             </DialogContent>
           </Dialog>

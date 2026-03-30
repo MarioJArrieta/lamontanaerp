@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { SubmitButton } from '@/components/ui/submit-button';
 import api from '@/lib/api';
 import { sv } from '@/lib/helpers';
 import type { Product, Inventory } from '@/types';
@@ -31,6 +32,7 @@ export default function Products() {
   const [stockProductId, setStockProductId] = useState<string | null>(null);
   const [stockQty, setStockQty] = useState('');
   const [stockNotes, setStockNotes] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const fetchData = () => {
     Promise.all([
@@ -45,6 +47,7 @@ export default function Products() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setSaving(true);
     try {
       if (editId) {
         await api.put(`/products/${editId}`, { name: form.name, base_price: form.base_price });
@@ -60,6 +63,8 @@ export default function Products() {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
       toast.error(msg);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -81,6 +86,7 @@ export default function Products() {
   const handleStockAdjust = async (e: FormEvent) => {
     e.preventDefault();
     if (!stockProductId || !stockQty) return;
+    setSaving(true);
     try {
       await api.post('/inventory/adjustments', {
         product_id: stockProductId,
@@ -93,6 +99,8 @@ export default function Products() {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
       toast.error(msg);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -141,7 +149,7 @@ export default function Products() {
                   <Label>Precio base</Label>
                   <Input type="number" value={form.base_price} onChange={e => setForm({...form, base_price: e.target.value})} required />
                 </div>
-                <Button type="submit" className="w-full">{editId ? 'Guardar' : 'Crear'}</Button>
+                <SubmitButton loading={saving} className="w-full">{editId ? 'Guardar' : 'Crear'}</SubmitButton>
               </form>
             </DialogContent>
           </Dialog>
@@ -209,7 +217,7 @@ export default function Products() {
               <Label>Nota (opcional)</Label>
               <Input value={stockNotes} onChange={e => setStockNotes(e.target.value)} placeholder="Razon del ajuste" />
             </div>
-            <Button type="submit" className="w-full" disabled={!stockQty}>Ajustar</Button>
+            <SubmitButton loading={saving} className="w-full" disabled={!stockQty}>Ajustar</SubmitButton>
           </form>
         </DialogContent>
       </Dialog>

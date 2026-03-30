@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { SubmitButton } from '@/components/ui/submit-button';
 import api from '@/lib/api';
 import { sv } from '@/lib/helpers';
 import type { Expense } from '@/types';
@@ -30,6 +31,7 @@ export default function Expenses() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const today = new Date().toISOString().split('T')[0];
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
@@ -51,6 +53,7 @@ export default function Expenses() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setSaving(true);
     try {
       await api.post('/finance/expenses', {
         date: form.date,
@@ -66,6 +69,8 @@ export default function Expenses() {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
       toast.error(msg);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -126,7 +131,7 @@ export default function Expenses() {
                   <Label>Notas</Label>
                   <Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
                 </div>
-                <Button type="submit" className="w-full">Registrar gasto</Button>
+                <SubmitButton loading={saving} className="w-full">Registrar gasto</SubmitButton>
               </form>
             </DialogContent>
           </Dialog>

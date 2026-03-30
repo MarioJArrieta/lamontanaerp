@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { SubmitButton } from '@/components/ui/submit-button';
 import api from '@/lib/api';
 import { sv } from '@/lib/helpers';
 import type { Production as ProductionType, ProductionSummary, Employee, Bobina } from '@/types';
@@ -27,6 +28,7 @@ export default function Production() {
   const [filterFrom, setFilterFrom] = useState(monthAgo);
   const [filterTo, setFilterTo] = useState(today);
 
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     date: today, employee_id: '', pacas_produced: '', botellones_produced: '0',
     waste_pacas: '0', bobina_id: '', notes: '',
@@ -50,6 +52,7 @@ export default function Production() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setSaving(true);
     try {
       await api.post('/production', {
         date: form.date,
@@ -67,6 +70,8 @@ export default function Production() {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
       toast.error(msg);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -131,7 +136,7 @@ export default function Production() {
                   <Label>Notas</Label>
                   <Input value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} />
                 </div>
-                <Button type="submit" className="w-full">Registrar</Button>
+                <SubmitButton loading={saving} className="w-full">Registrar</SubmitButton>
               </form>
             </DialogContent>
           </Dialog>
