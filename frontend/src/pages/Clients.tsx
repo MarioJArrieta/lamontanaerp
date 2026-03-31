@@ -158,7 +158,7 @@ export default function Clients() {
     }
   };
 
-  const productMap = new Map(products.map(p => [p.id, p]));
+  const productMap = new Map<string, Product>(products.map(p => [p.id, p]));
 
   const openPrices = (c: Client) => {
     setPriceClient(c);
