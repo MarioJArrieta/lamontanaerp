@@ -158,7 +158,8 @@ export default function Clients() {
     }
   };
 
-  const productMap = new Map<string, Product>(products.map(p => [p.id, p]));
+  const productMap: Record<string, Product> = {};
+  for (const p of products) productMap[p.id] = p;
 
   const openPrices = (c: Client) => {
     setPriceClient(c);
@@ -434,7 +435,7 @@ export default function Clients() {
                   </TableHeader>
                   <TableBody>
                     {priceClient.prices.map(cp => {
-                      const prod = productMap.get(cp.product_id);
+                      const prod = productMap[cp.product_id];
                       return (
                         <TableRow key={cp.id}>
                           <TableCell className="font-medium">{prod?.name || 'Producto'}</TableCell>
