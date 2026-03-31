@@ -15,6 +15,7 @@ from app.domain.aggregates.payroll import Payroll, Advance
 from app.domain.aggregates.company_settings import CompanySettings
 from app.domain.aggregates.expense import Expense
 from app.domain.aggregates.other_income import OtherIncome
+from app.domain.aggregates.loyalty_transaction import LoyaltyTransaction
 
 __all__ = [
     "Base",
@@ -36,4 +37,5 @@ __all__ = [
     "CompanySettings",
     "Expense",
     "OtherIncome",
+    "LoyaltyTransaction",
 ]

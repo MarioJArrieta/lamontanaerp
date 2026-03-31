@@ -17,6 +17,7 @@ from app.api.v1.delivery_router import router as delivery_router
 from app.api.v1.payroll_router import router as payroll_router
 from app.api.v1.settings_router import router as settings_router
 from app.api.v1.finance_router import router as finance_router
+from app.api.v1.loyalty_router import router as loyalty_router
 from app.config import get_settings
 from app.domain.aggregates import Base
 from app.infrastructure.database import engine
@@ -63,6 +64,7 @@ app.include_router(delivery_router, prefix="/api/v1")
 app.include_router(payroll_router, prefix="/api/v1")
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(finance_router, prefix="/api/v1")
+app.include_router(loyalty_router, prefix="/api/v1")
 
 
 @app.get("/health")

@@ -12,6 +12,7 @@ from app.infrastructure.repositories.payroll_repository import PayrollRepository
 from app.infrastructure.repositories.company_settings_repository import CompanySettingsRepository
 from app.infrastructure.repositories.expense_repository import ExpenseRepository
 from app.infrastructure.repositories.other_income_repository import OtherIncomeRepository
+from app.infrastructure.repositories.loyalty_repository import LoyaltyRepository
 
 __all__ = [
     "UserRepository",
@@ -29,4 +30,5 @@ __all__ = [
     "CompanySettingsRepository",
     "ExpenseRepository",
     "OtherIncomeRepository",
+    "LoyaltyRepository",
 ]

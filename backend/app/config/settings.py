@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     bolsas_per_paca: int = 40
     default_credit_days: int = 7
 
+    # Loyalty (Gotas)
+    gotas_per_paca: int = 1
+    gotas_per_botellon: int = 1
+    gotas_to_redeem_paca: int = 100
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

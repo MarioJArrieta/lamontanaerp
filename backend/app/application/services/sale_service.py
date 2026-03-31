@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.security import verify_password
 from app.domain.aggregates.delivery import Delivery
 from app.domain.aggregates.inventory import InventoryMovement
+from app.domain.aggregates.loyalty_transaction import LoyaltyTransaction
 from app.domain.aggregates.receivable import Receivable
 from app.domain.aggregates.sale import Sale
 from app.domain.aggregates.sale_item import SaleItem
@@ -22,6 +23,7 @@ from app.domain.enums import (
     UserRole,
 )
 from app.config import get_settings
+from app.application.services.loyalty_service import LoyaltyService
 from app.infrastructure.repositories import (
     ClientRepository,
     EmployeeRepository,
@@ -40,6 +42,7 @@ class SaleService:
         self.employee_repo = EmployeeRepository(session)
         self.inventory_repo = InventoryRepository(session)
         self.receivable_repo = ReceivableRepository(session)
+        self.loyalty_service = LoyaltyService(session)
         self.session = session
 
     async def get_by_date_range(
@@ -149,6 +152,14 @@ class SaleService:
         self.session.add(delivery)
         await self.session.flush()
 
+        # Earn loyalty points (gotas)
+        await self.loyalty_service.earn_points_for_sale(
+            client_id=client_id,
+            sale_id=sale.id,
+            total_pacas=total_pacas,
+            total_botellones=total_botellones,
+        )
+
         # If credit sale, create receivable
         if payment_type == PaymentType.CREDIT:
             settings = get_settings()
@@ -209,6 +220,9 @@ class SaleService:
         if not sale:
             raise ValueError("Venta no encontrada")
 
+        # Reverse loyalty points
+        await self.loyalty_service.reverse_points_for_sale(sale.client_id, sale_id)
+
         # Restore inventory for each item
         for item in sale.items:
             await self.inventory_repo.adjust(
@@ -220,6 +234,9 @@ class SaleService:
             )
 
         # Delete related records
+        await self.session.execute(
+            sa_delete(LoyaltyTransaction).where(LoyaltyTransaction.sale_id == sale_id)
+        )
         await self.session.execute(
             sa_delete(InventoryMovement).where(InventoryMovement.reference_id == sale_id)
         )

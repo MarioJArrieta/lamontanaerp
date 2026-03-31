@@ -96,3 +96,9 @@ class IncomeCategory(str, enum.Enum):
     REFUND = "refund"
     SUBSIDY = "subsidy"
     OTHER = "other"
+
+
+class LoyaltyTransactionType(str, enum.Enum):
+    EARN = "earn"
+    REDEEM = "redeem"
+    REVERSAL = "reversal"

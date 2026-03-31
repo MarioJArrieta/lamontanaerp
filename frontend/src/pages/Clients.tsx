@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { Plus, UserCircle, Search, MapPin, Map, Navigation } from 'lucide-react';
+import { Plus, UserCircle, Search, MapPin, Map, Navigation, Droplets } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { SubmitButton } from '@/components/ui/submit-button';
 import api from '@/lib/api';
 import { sv } from '@/lib/helpers';
-import type { Client } from '@/types';
+import type { Client, LoyaltyTransaction, LoyaltyConfig } from '@/types';
 import LocationMap from '@/components/shared/LocationMap';
 import ClientsMap from '@/components/shared/ClientsMap';
 
@@ -33,6 +33,11 @@ export default function Clients() {
   const [mapLng, setMapLng] = useState<number | null>(null);
   const [allMapOpen, setAllMapOpen] = useState(false);
   const [page, setPage] = useState(1);
+  const [gotasClient, setGotasClient] = useState<Client | null>(null);
+  const [gotasHistory, setGotasHistory] = useState<LoyaltyTransaction[]>([]);
+  const [gotasConfig, setGotasConfig] = useState<LoyaltyConfig | null>(null);
+  const [redeemAmount, setRedeemAmount] = useState('');
+  const [redeeming, setRedeeming] = useState(false);
   const [form, setForm] = useState({
     name: '', client_type: 'person', cedula_nit: '',
     address: '', delivery_zone: '', phone: '', email: '',
@@ -108,6 +113,37 @@ export default function Clients() {
       toast.error('Error al guardar ubicacion');
     } finally {
       setSavingLocation(false);
+    }
+  };
+
+  const openGotas = async (c: Client) => {
+    setGotasClient(c);
+    setRedeemAmount('');
+    try {
+      const [histRes, cfgRes] = await Promise.all([
+        api.get(`/loyalty/${c.id}/history`),
+        api.get('/loyalty/config'),
+      ]);
+      setGotasHistory(histRes.data);
+      setGotasConfig(cfgRes.data);
+    } catch {
+      toast.error('Error al cargar gotas');
+    }
+  };
+
+  const handleRedeem = async () => {
+    if (!gotasClient || !redeemAmount) return;
+    setRedeeming(true);
+    try {
+      await api.post(`/loyalty/${gotasClient.id}/redeem`, { points: Number(redeemAmount) });
+      toast.success('Gotas canjeadas');
+      openGotas({ ...gotasClient, loyalty_points: gotasClient.loyalty_points - Number(redeemAmount) });
+      fetchData();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
+      toast.error(msg);
+    } finally {
+      setRedeeming(false);
     }
   };
 
@@ -210,6 +246,7 @@ export default function Clients() {
                   <TableHead>Cedula/NIT</TableHead>
                   <TableHead className="w-24">Zona</TableHead>
                   <TableHead>Telefono</TableHead>
+                  <TableHead>Gotas</TableHead>
                   <TableHead>Precios especiales</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>Acciones</TableHead>
@@ -227,7 +264,7 @@ export default function Clients() {
                   const pg = paginate(filtered, page);
                   return pg.data.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       <UserCircle className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No hay clientes</p>
                     </TableCell>
@@ -239,6 +276,11 @@ export default function Clients() {
                     <TableCell>{c.cedula_nit}</TableCell>
                     <TableCell>{c.delivery_zone || '-'}</TableCell>
                     <TableCell>{c.phone || '-'}</TableCell>
+                    <TableCell>
+                      <button onClick={() => openGotas(c)} className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium text-sm">
+                        <Droplets className="w-3.5 h-3.5" />{c.loyalty_points}
+                      </button>
+                    </TableCell>
                     <TableCell>{c.prices.length > 0 ? <Badge>{c.prices.length} precios</Badge> : '-'}</TableCell>
                     <TableCell><Badge variant={c.is_active ? 'default' : 'destructive'}>{c.is_active ? 'Activo' : 'Inactivo'}</Badge></TableCell>
                     <TableCell>
@@ -304,6 +346,82 @@ export default function Clients() {
               </>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!gotasClient} onOpenChange={() => setGotasClient(null)}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Droplets className="w-5 h-5 text-blue-500" />
+              Gotas de {gotasClient?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {gotasClient && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                <div>
+                  <p className="text-sm text-muted-foreground">Balance actual</p>
+                  <p className="text-2xl font-bold text-blue-600">{gotasClient.loyalty_points} gotas</p>
+                </div>
+                {gotasConfig && (
+                  <div className="text-right text-xs text-muted-foreground">
+                    <p>{gotasConfig.gotas_per_paca} gota/paca</p>
+                    <p>{gotasConfig.gotas_to_redeem_paca} gotas = 1 paca gratis</p>
+                  </div>
+                )}
+              </div>
+
+              {gotasConfig && gotasClient.loyalty_points >= gotasConfig.gotas_to_redeem_paca && (
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-xs">Canjear gotas</Label>
+                    <Input
+                      type="number"
+                      placeholder={`Min. ${gotasConfig.gotas_to_redeem_paca}`}
+                      value={redeemAmount}
+                      onChange={e => setRedeemAmount(e.target.value)}
+                      min={gotasConfig.gotas_to_redeem_paca}
+                      max={gotasClient.loyalty_points}
+                      step={gotasConfig.gotas_to_redeem_paca}
+                    />
+                  </div>
+                  <SubmitButton
+                    loading={redeeming}
+                    onClick={handleRedeem}
+                    disabled={!redeemAmount || Number(redeemAmount) < gotasConfig.gotas_to_redeem_paca || Number(redeemAmount) > gotasClient.loyalty_points}
+                    type="button"
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    Canjear
+                  </SubmitButton>
+                </div>
+              )}
+
+              <div>
+                <p className="text-sm font-medium mb-2">Historial</p>
+                {gotasHistory.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Sin movimientos</p>
+                ) : (
+                  <div className="space-y-1 max-h-60 overflow-y-auto">
+                    {gotasHistory.map(tx => (
+                      <div key={tx.id} className="flex items-center justify-between py-1.5 px-2 rounded text-sm hover:bg-muted/50">
+                        <div>
+                          <p className="text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleDateString('es-CO')}</p>
+                          <p className="text-xs">{tx.description}</p>
+                        </div>
+                        <span className={`font-bold text-sm ${tx.points > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                          {tx.points > 0 ? '+' : ''}{tx.points}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <Button variant="outline" className="w-full" onClick={() => setGotasClient(null)}>Cerrar</Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

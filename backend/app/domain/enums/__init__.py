@@ -15,6 +15,7 @@ from app.domain.enums.enums import (
     InventoryMovementType,
     ReceivableStatus,
     UserRole,
+    LoyaltyTransactionType,
 )
 
 __all__ = [
@@ -34,4 +35,5 @@ __all__ = [
     "InventoryMovementType",
     "ReceivableStatus",
     "UserRole",
+    "LoyaltyTransactionType",
 ]

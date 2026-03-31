@@ -1,4 +1,5 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
@@ -17,6 +18,7 @@ import {
   Receipt,
   HandCoins,
   BarChart3,
+  ChevronDown,
 } from 'lucide-react';
 import { clearAuth, getUser } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -25,28 +27,46 @@ import { Separator } from '@/components/ui/separator';
 type Role = 'admin' | 'secretary' | 'delivery';
 
 type NavItem = { to: string; icon: typeof LayoutDashboard; label: string; roles: Role[] };
-type NavSection = { title?: string; roles: Role[]; items: NavItem[] };
+type NavSection = { title: string; icon: typeof LayoutDashboard; roles: Role[]; collapsible?: boolean; items: NavItem[] };
 
 const navSections: NavSection[] = [
   {
+    title: 'General',
+    icon: LayoutDashboard,
     roles: ['admin', 'secretary', 'delivery'],
     items: [
       { to: '/', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'secretary'] },
-      { to: '/employees', icon: Users, label: 'Empleados', roles: ['admin'] },
-      { to: '/products', icon: Package, label: 'Productos', roles: ['admin', 'secretary'] },
-      { to: '/clients', icon: UserCircle, label: 'Clientes', roles: ['admin', 'secretary'] },
-      { to: '/bobinas', icon: Cylinder, label: 'Bobinas', roles: ['admin'] },
-      { to: '/production', icon: Factory, label: 'Produccion', roles: ['admin', 'secretary'] },
-      { to: '/inventory', icon: Warehouse, label: 'Inventario', roles: ['admin', 'secretary'] },
-      { to: '/sales', icon: ShoppingCart, label: 'Ventas', roles: ['admin', 'secretary'] },
-      { to: '/receivables', icon: CreditCard, label: 'Cuentas x Cobrar', roles: ['admin', 'secretary'] },
-      { to: '/deliveries', icon: Truck, label: 'Repartos', roles: ['admin', 'secretary', 'delivery'] },
-      { to: '/payroll', icon: Wallet, label: 'Nomina', roles: ['admin'] },
     ],
   },
   {
-    title: 'Gastos e Ingresos',
+    title: 'Produccion',
+    icon: Factory,
+    roles: ['admin', 'secretary'],
+    collapsible: true,
+    items: [
+      { to: '/products', icon: Package, label: 'Productos', roles: ['admin', 'secretary'] },
+      { to: '/bobinas', icon: Cylinder, label: 'Bobinas', roles: ['admin'] },
+      { to: '/production', icon: Factory, label: 'Produccion', roles: ['admin', 'secretary'] },
+      { to: '/inventory', icon: Warehouse, label: 'Inventario', roles: ['admin', 'secretary'] },
+    ],
+  },
+  {
+    title: 'Ventas',
+    icon: ShoppingCart,
+    roles: ['admin', 'secretary', 'delivery'],
+    collapsible: true,
+    items: [
+      { to: '/clients', icon: UserCircle, label: 'Clientes', roles: ['admin', 'secretary'] },
+      { to: '/sales', icon: ShoppingCart, label: 'Ventas', roles: ['admin', 'secretary'] },
+      { to: '/receivables', icon: CreditCard, label: 'Cuentas x Cobrar', roles: ['admin', 'secretary'] },
+      { to: '/deliveries', icon: Truck, label: 'Repartos', roles: ['admin', 'secretary', 'delivery'] },
+    ],
+  },
+  {
+    title: 'Finanzas',
+    icon: BarChart3,
     roles: ['admin'],
+    collapsible: true,
     items: [
       { to: '/expenses', icon: Receipt, label: 'Gastos', roles: ['admin'] },
       { to: '/other-income', icon: HandCoins, label: 'Otros Ingresos', roles: ['admin'] },
@@ -54,16 +74,51 @@ const navSections: NavSection[] = [
     ],
   },
   {
+    title: 'RR.HH.',
+    icon: Users,
     roles: ['admin'],
+    collapsible: true,
+    items: [
+      { to: '/employees', icon: Users, label: 'Empleados', roles: ['admin'] },
+      { to: '/payroll', icon: Wallet, label: 'Nomina', roles: ['admin'] },
+    ],
+  },
+  {
+    title: 'Sistema',
+    icon: Settings,
+    roles: ['admin'],
+    collapsible: true,
     items: [
       { to: '/settings', icon: Settings, label: 'Configuracion', roles: ['admin'] },
     ],
   },
 ];
 
+function sectionHasActiveRoute(section: NavSection, pathname: string) {
+  return section.items.some(item =>
+    item.to === '/' ? pathname === '/' : pathname.startsWith(item.to)
+  );
+}
+
 export default function Sidebar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const user = getUser();
+  const role = (user?.role || 'admin') as Role;
+
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    navSections.forEach(s => {
+      if (s.collapsible) {
+        initial[s.title] = !sectionHasActiveRoute(s, location.pathname);
+      }
+    });
+    return initial;
+  });
+
+  const toggle = (title: string) => {
+    setCollapsed(prev => ({ ...prev, [title]: !prev[title] }));
+  };
 
   const handleLogout = () => {
     clearAuth();
@@ -86,36 +141,53 @@ export default function Sidebar() {
 
       <Separator className="bg-sidebar-border" />
 
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+      <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
         {navSections
-          .filter(section => section.roles.includes((user?.role || 'admin') as Role))
-          .map((section, idx) => {
-            const visibleItems = section.items.filter(item => item.roles.includes((user?.role || 'admin') as Role));
+          .filter(section => section.roles.includes(role))
+          .map((section) => {
+            const visibleItems = section.items.filter(item => item.roles.includes(role));
             if (visibleItems.length === 0) return null;
+
+            const isCollapsed = !!collapsed[section.title];
+            const isCollapsible = !!section.collapsible;
+            const SectionIcon = section.icon;
+
             return (
-              <div key={idx}>
-                {section.title && (
-                  <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-                    {section.title}
-                  </p>
-                )}
-                {visibleItems.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.to === '/'}
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                        isActive
-                          ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                          : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'
-                      }`
-                    }
+              <div key={section.title}>
+                {isCollapsible ? (
+                  <button
+                    onClick={() => toggle(section.title)}
+                    className="w-full flex items-center justify-between px-3 py-2 mt-1 rounded-lg text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-sidebar-foreground/70 hover:bg-sidebar-accent/30 transition-colors"
                   >
-                    <item.icon className="w-4.5 h-4.5" />
-                    {item.label}
-                  </NavLink>
-                ))}
+                    <span className="flex items-center gap-2">
+                      <SectionIcon className="w-3.5 h-3.5" />
+                      {section.title}
+                    </span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+                  </button>
+                ) : null}
+
+                {(!isCollapsible || !isCollapsed) && (
+                  <div className={isCollapsible ? 'ml-1' : ''}>
+                    {visibleItems.map((item) => (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        end={item.to === '/'}
+                        className={({ isActive }) =>
+                          `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                            isActive
+                              ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+                              : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'
+                          }`
+                        }
+                      >
+                        <item.icon className="w-4 h-4" />
+                        {item.label}
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}

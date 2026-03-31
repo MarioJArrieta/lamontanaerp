@@ -47,9 +47,26 @@ export interface Client {
   email: string | null;
   latitude: string | null;
   longitude: string | null;
+  loyalty_points: number;
   is_active: boolean;
   prices: ClientPrice[];
   created_at: string;
+}
+
+export interface LoyaltyTransaction {
+  id: string;
+  client_id: string;
+  transaction_type: 'earn' | 'redeem' | 'reversal';
+  points: number;
+  sale_id: string | null;
+  description: string | null;
+  created_at: string;
+}
+
+export interface LoyaltyConfig {
+  gotas_per_paca: number;
+  gotas_per_botellon: number;
+  gotas_to_redeem_paca: number;
 }
 
 export interface Bobina {

@@ -12,6 +12,7 @@ from app.domain.enums import (
     ExpenseCategory,
     IncomeCategory,
     InventoryMovementType,
+    LoyaltyTransactionType,
     PaymentMethod,
     PaymentType,
     PayPeriod,
@@ -156,6 +157,7 @@ class ClientResponse(BaseModel):
     email: str | None
     latitude: Decimal | None
     longitude: Decimal | None
+    loyalty_points: int = 0
     is_active: bool
     prices: list[ClientPriceResponse] = []
     created_at: datetime
@@ -462,6 +464,28 @@ class OtherIncomeResponse(BaseModel):
     amount: Decimal
     notes: str | None
     created_at: datetime
+
+
+# ---- Loyalty (Gotas) ----
+class LoyaltyTransactionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    client_id: uuid.UUID
+    transaction_type: LoyaltyTransactionType
+    points: int
+    sale_id: uuid.UUID | None
+    description: str | None
+    created_at: datetime
+
+
+class LoyaltyRedeemRequest(BaseModel):
+    points: int
+
+
+class LoyaltyConfigResponse(BaseModel):
+    gotas_per_paca: int
+    gotas_per_botellon: int
+    gotas_to_redeem_paca: int
 
 
 # ---- Finance KPIs ----
