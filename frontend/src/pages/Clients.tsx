@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { Plus, UserCircle, Search, MapPin, Map, Navigation, Droplets } from 'lucide-react';
+import { Plus, UserCircle, Search, MapPin, Map, Navigation, Droplets, Tag, Trash2 } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { SubmitButton } from '@/components/ui/submit-button';
 import api from '@/lib/api';
 import { sv } from '@/lib/helpers';
-import type { Client, LoyaltyTransaction, LoyaltyConfig } from '@/types';
+import type { Client, Product, LoyaltyTransaction, LoyaltyConfig } from '@/types';
 import LocationMap from '@/components/shared/LocationMap';
 import ClientsMap from '@/components/shared/ClientsMap';
 
@@ -22,6 +22,7 @@ const clientTypeLabel: Record<string, string> = { person: 'Persona', company: 'E
 
 export default function Clients() {
   const [clients, setClients] = useState<Client[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
@@ -38,13 +39,23 @@ export default function Clients() {
   const [gotasConfig, setGotasConfig] = useState<LoyaltyConfig | null>(null);
   const [redeemAmount, setRedeemAmount] = useState('');
   const [redeeming, setRedeeming] = useState(false);
+  const [priceClient, setPriceClient] = useState<Client | null>(null);
+  const [priceProductId, setPriceProductId] = useState('');
+  const [priceValue, setPriceValue] = useState('');
+  const [savingPrice, setSavingPrice] = useState(false);
   const [form, setForm] = useState({
     name: '', client_type: 'person', cedula_nit: '',
     address: '', delivery_zone: '', phone: '', email: '',
   });
 
   const fetchData = () => {
-    api.get('/clients').then(r => setClients(r.data)).finally(() => setLoading(false));
+    Promise.all([
+      api.get('/clients'),
+      api.get('/products'),
+    ]).then(([clientsRes, productsRes]) => {
+      setClients(clientsRes.data);
+      setProducts(productsRes.data);
+    }).finally(() => setLoading(false));
   };
   useEffect(fetchData, []);
 
@@ -144,6 +155,50 @@ export default function Clients() {
       toast.error(msg);
     } finally {
       setRedeeming(false);
+    }
+  };
+
+  const productMap = new Map(products.map(p => [p.id, p]));
+
+  const openPrices = (c: Client) => {
+    setPriceClient(c);
+    setPriceProductId('');
+    setPriceValue('');
+  };
+
+  const handleSavePrice = async () => {
+    if (!priceClient || !priceProductId || !priceValue) return;
+    setSavingPrice(true);
+    try {
+      await api.put(`/clients/${priceClient.id}/prices`, {
+        product_id: priceProductId,
+        price: Number(priceValue),
+      });
+      toast.success('Precio guardado');
+      fetchData();
+      // Refresh the client data in the dialog
+      const res = await api.get(`/clients/${priceClient.id}`);
+      setPriceClient(res.data);
+      setPriceProductId('');
+      setPriceValue('');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
+      toast.error(msg);
+    } finally {
+      setSavingPrice(false);
+    }
+  };
+
+  const handleDeletePrice = async (productId: string) => {
+    if (!priceClient) return;
+    try {
+      await api.delete(`/clients/${priceClient.id}/prices/${productId}`);
+      toast.success('Precio eliminado');
+      fetchData();
+      const res = await api.get(`/clients/${priceClient.id}`);
+      setPriceClient(res.data);
+    } catch {
+      toast.error('Error al eliminar precio');
     }
   };
 
@@ -281,7 +336,11 @@ export default function Clients() {
                         <Droplets className="w-3.5 h-3.5" />{c.loyalty_points}
                       </button>
                     </TableCell>
-                    <TableCell>{c.prices.length > 0 ? <Badge>{c.prices.length} precios</Badge> : '-'}</TableCell>
+                    <TableCell>
+                      <button onClick={() => openPrices(c)} className="inline-flex items-center gap-1 text-orange-600 hover:text-orange-800 font-medium text-sm">
+                        <Tag className="w-3.5 h-3.5" />{c.prices.length > 0 ? `${c.prices.length} precios` : 'Asignar'}
+                      </button>
+                    </TableCell>
                     <TableCell><Badge variant={c.is_active ? 'default' : 'destructive'}>{c.is_active ? 'Activo' : 'Inactivo'}</Badge></TableCell>
                     <TableCell>
                       <div className="flex gap-2">
@@ -346,6 +405,77 @@ export default function Clients() {
               </>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!priceClient} onOpenChange={() => setPriceClient(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Tag className="w-5 h-5 text-orange-500" />
+              Precios especiales - {priceClient?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {priceClient && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Asigna precios personalizados por producto. Si no tiene precio especial, se usa el precio base.
+              </p>
+
+              {priceClient.prices.length > 0 && (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Producto</TableHead>
+                      <TableHead>Precio base</TableHead>
+                      <TableHead>Precio especial</TableHead>
+                      <TableHead className="w-10"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {priceClient.prices.map(cp => {
+                      const prod = productMap.get(cp.product_id);
+                      return (
+                        <TableRow key={cp.id}>
+                          <TableCell className="font-medium">{prod?.name || 'Producto'}</TableCell>
+                          <TableCell className="text-muted-foreground">${Number(prod?.base_price || 0).toLocaleString('es-CO')}</TableCell>
+                          <TableCell className="font-semibold text-orange-600">${Number(cp.price).toLocaleString('es-CO')}</TableCell>
+                          <TableCell>
+                            <Button size="sm" variant="ghost" className="text-destructive h-7 w-7 p-0" onClick={() => handleDeletePrice(cp.product_id)}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+
+              <div className="flex gap-2 items-end">
+                <div className="flex-1 space-y-1">
+                  <Label className="text-xs">Producto</Label>
+                  <Select value={priceProductId || undefined} onValueChange={v => setPriceProductId(sv(v))}>
+                    <SelectTrigger><SelectValue placeholder="Seleccionar producto" /></SelectTrigger>
+                    <SelectContent>
+                      {products.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.name} (${Number(p.base_price).toLocaleString('es-CO')})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-32 space-y-1">
+                  <Label className="text-xs">Precio</Label>
+                  <Input type="number" placeholder="Precio" value={priceValue} onChange={e => setPriceValue(e.target.value)} />
+                </div>
+                <SubmitButton loading={savingPrice} onClick={handleSavePrice} disabled={!priceProductId || !priceValue} type="button" size="sm">
+                  Guardar
+                </SubmitButton>
+              </div>
+
+              <Button variant="outline" className="w-full" onClick={() => setPriceClient(null)}>Cerrar</Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

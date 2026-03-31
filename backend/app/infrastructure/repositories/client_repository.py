@@ -55,3 +55,18 @@ class ClientRepository(BaseRepository[Client]):
         self.session.add(client_price)
         await self.session.flush()
         return client_price
+
+    async def delete_client_price(
+        self, client_id: uuid.UUID, product_id: uuid.UUID
+    ) -> bool:
+        stmt = select(ClientPrice).where(
+            ClientPrice.client_id == client_id,
+            ClientPrice.product_id == product_id,
+        )
+        result = await self.session.execute(stmt)
+        existing = result.scalar_one_or_none()
+        if existing:
+            await self.session.delete(existing)
+            await self.session.flush()
+            return True
+        return False

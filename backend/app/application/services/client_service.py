@@ -60,3 +60,8 @@ class ClientService:
         if not client:
             raise ValueError("Client not found")
         return client.prices
+
+    async def delete_price(
+        self, client_id: uuid.UUID, product_id: uuid.UUID
+    ) -> bool:
+        return await self.repo.delete_client_price(client_id, product_id)
