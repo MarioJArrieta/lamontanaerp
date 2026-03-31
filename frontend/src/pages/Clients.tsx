@@ -456,8 +456,8 @@ export default function Clients() {
               <div className="flex gap-2 items-end">
                 <div className="flex-1 space-y-1">
                   <Label className="text-xs">Producto</Label>
-                  <Select value={priceProductId || undefined} onValueChange={v => setPriceProductId(sv(v))}>
-                    <SelectTrigger><SelectValue placeholder="Seleccionar producto" /></SelectTrigger>
+                  <Select value={priceProductId || null} onValueChange={v => setPriceProductId(sv(v))}>
+                    <SelectTrigger><SelectValue placeholder="Seleccionar producto">{(v: string) => productMap[v]?.name || 'Seleccionar'}</SelectValue></SelectTrigger>
                     <SelectContent>
                       {products.map(p => (
                         <SelectItem key={p.id} value={p.id}>{p.name} (${Number(p.base_price).toLocaleString('es-CO')})</SelectItem>
