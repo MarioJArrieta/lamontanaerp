@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { Truck, CheckCircle2, Clock, MapPin, CircleDollarSign } from 'lucide-react';
+import { Truck, CheckCircle2, Clock, MapPin, CircleDollarSign, Navigation } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -328,6 +328,14 @@ export default function Deliveries() {
                 lng={mapClient.longitude ? Number(mapClient.longitude) : null}
                 onLocationSelect={() => {}}
               />
+              {mapClient.latitude && mapClient.longitude && (
+                <Button
+                  className="w-full"
+                  onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${mapClient.latitude},${mapClient.longitude}`, '_blank')}
+                >
+                  <Navigation className="w-4 h-4 mr-2" />Calcular ruta
+                </Button>
+              )}
             </div>
           )}
         </DialogContent>

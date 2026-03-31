@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { Plus, UserCircle, Search, MapPin, Map } from 'lucide-react';
+import { Plus, UserCircle, Search, MapPin, Map, Navigation } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -294,9 +294,14 @@ export default function Clients() {
               Guardar ubicacion
             </SubmitButton>
             {mapLat !== null && (
-              <Button variant="outline" onClick={() => { setMapLat(null); setMapLng(null); }}>
-                Limpiar
-              </Button>
+              <>
+                <Button variant="outline" onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${mapLat},${mapLng}`, '_blank')}>
+                  <Navigation className="w-4 h-4 mr-1" />Calcular ruta
+                </Button>
+                <Button variant="outline" onClick={() => { setMapLat(null); setMapLng(null); }}>
+                  Limpiar
+                </Button>
+              </>
             )}
           </div>
         </DialogContent>
