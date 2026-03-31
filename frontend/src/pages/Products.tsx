@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { Plus, Package } from 'lucide-react';
+import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -33,6 +34,7 @@ export default function Products() {
   const [stockQty, setStockQty] = useState('');
   const [stockNotes, setStockNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(1);
 
   const fetchData = () => {
     Promise.all([
@@ -75,6 +77,7 @@ export default function Products() {
   };
 
   const stockMap = new Map(inventory.map(i => [i.product_id, i.quantity]));
+  const pg = paginate(products, page);
 
   const openStockDialog = (productId: string) => {
     setStockProductId(productId);
@@ -173,14 +176,14 @@ export default function Products() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {products.length === 0 ? (
+                {pg.data.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8">
                       <Package className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No hay productos</p>
                     </TableCell>
                   </TableRow>
-                ) : products.map(p => (
+                ) : pg.data.map(p => (
                   <TableRow key={p.id}>
                     <TableCell className="font-medium">{p.name}</TableCell>
                     <TableCell>{p.unit}</TableCell>
@@ -199,6 +202,7 @@ export default function Products() {
               </TableBody>
             </Table>
           )}
+          <Pagination page={pg.page} totalPages={pg.totalPages} totalItems={pg.totalItems} pageSize={pg.pageSize} onPageChange={setPage} />
         </CardContent>
       </Card>
 

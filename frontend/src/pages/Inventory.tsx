@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Warehouse } from 'lucide-react';
+import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +27,8 @@ export default function Inventory() {
   }, []);
 
   const productMap = new Map(products.map(p => [p.id, p]));
+  const [page, setPage] = useState(1);
+  const pg = paginate(movements, page);
 
   const movementTypeLabel: Record<string, string> = {
     production_in: 'Produccion',
@@ -82,13 +85,13 @@ export default function Inventory() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {movements.length === 0 ? (
+              {pg.data.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                     Sin movimientos
                   </TableCell>
                 </TableRow>
-              ) : movements.slice(0, 20).map(m => (
+              ) : pg.data.map(m => (
                 <TableRow key={m.id}>
                   <TableCell className="font-medium">{productMap.get(m.product_id)?.name || '-'}</TableCell>
                   <TableCell><Badge variant={movementVariant(m.movement_type)}>{movementTypeLabel[m.movement_type] || m.movement_type}</Badge></TableCell>
@@ -101,6 +104,7 @@ export default function Inventory() {
               ))}
             </TableBody>
           </Table>
+          <Pagination page={pg.page} totalPages={pg.totalPages} totalItems={pg.totalItems} pageSize={pg.pageSize} onPageChange={setPage} />
         </CardContent>
       </Card>
     </div>

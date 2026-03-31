@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { Plus, UserCircle, Search, MapPin, Map } from 'lucide-react';
+import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -31,6 +32,7 @@ export default function Clients() {
   const [mapLat, setMapLat] = useState<number | null>(null);
   const [mapLng, setMapLng] = useState<number | null>(null);
   const [allMapOpen, setAllMapOpen] = useState(false);
+  const [page, setPage] = useState(1);
   const [form, setForm] = useState({
     name: '', client_type: 'person', cedula_nit: '',
     address: '', delivery_zone: '', phone: '', email: '',
@@ -206,7 +208,7 @@ export default function Clients() {
                   <TableHead>Nombre</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Cedula/NIT</TableHead>
-                  <TableHead>Zona</TableHead>
+                  <TableHead className="w-24">Zona</TableHead>
                   <TableHead>Telefono</TableHead>
                   <TableHead>Precios especiales</TableHead>
                   <TableHead>Estado</TableHead>
@@ -222,14 +224,15 @@ export default function Clients() {
                     (c.delivery_zone || '').toLowerCase().includes(q) ||
                     (c.phone || '').includes(q)
                   ) : clients;
-                  return filtered.length === 0 ? (
+                  const pg = paginate(filtered, page);
+                  return pg.data.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8">
                       <UserCircle className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No hay clientes</p>
                     </TableCell>
                   </TableRow>
-                ) : filtered.map(c => (
+                ) : pg.data.map(c => (
                   <TableRow key={c.id}>
                     <TableCell className="font-medium">{c.name}</TableCell>
                     <TableCell><Badge variant="secondary">{c.client_type === 'person' ? 'Persona' : 'Empresa'}</Badge></TableCell>
@@ -240,7 +243,7 @@ export default function Clients() {
                     <TableCell><Badge variant={c.is_active ? 'default' : 'destructive'}>{c.is_active ? 'Activo' : 'Inactivo'}</Badge></TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline" onClick={() => openMap(c)}>
+                        <Button size="sm" variant="outline" onClick={() => openMap(c)} className={c.latitude && c.longitude ? 'border-green-400 bg-green-50 text-green-700 hover:bg-green-100' : 'text-muted-foreground'}>
                           <MapPin className="w-3.5 h-3.5 mr-1" />Ubicacion
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => openEdit(c)}>Editar</Button>
@@ -253,6 +256,17 @@ export default function Clients() {
               </TableBody>
             </Table>
           )}
+          {(() => {
+            const q = search.toLowerCase();
+            const filtered = q ? clients.filter(c =>
+              c.name.toLowerCase().includes(q) ||
+              c.cedula_nit.toLowerCase().includes(q) ||
+              (c.delivery_zone || '').toLowerCase().includes(q) ||
+              (c.phone || '').includes(q)
+            ) : clients;
+            const pg = paginate(filtered, page);
+            return <Pagination page={pg.page} totalPages={pg.totalPages} totalItems={pg.totalItems} pageSize={pg.pageSize} onPageChange={setPage} />;
+          })()}
         </CardContent>
       </Card>
 

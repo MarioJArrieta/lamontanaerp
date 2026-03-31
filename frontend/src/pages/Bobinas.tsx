@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { Plus, Cylinder, Weight, Package, CircleDollarSign, CircleCheck } from 'lucide-react';
+import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import StatCard from '@/components/shared/StatCard';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,7 @@ export default function Bobinas() {
   const [editId, setEditId] = useState<string | null>(null);
   const today = new Date().toISOString().split('T')[0];
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(1);
   const [form, setForm] = useState({ code: '', purchase_date: today, weight_kg: '', cost: '', estimated_pacas: '250', supplier: '', notes: '' });
 
   const fetchData = () => {
@@ -91,6 +93,8 @@ export default function Bobinas() {
       toast.error(msg);
     }
   };
+
+  const pg = paginate(bobinas, page);
 
   return (
     <div>
@@ -184,14 +188,14 @@ export default function Bobinas() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {bobinas.length === 0 ? (
+                {pg.data.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-8">
                       <Cylinder className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No hay bobinas registradas</p>
                     </TableCell>
                   </TableRow>
-                ) : bobinas.map(b => (
+                ) : pg.data.map(b => (
                   <TableRow key={b.id}>
                     <TableCell className="font-medium">{b.code || '-'}</TableCell>
                     <TableCell>{b.purchase_date || '-'}</TableCell>
@@ -226,6 +230,7 @@ export default function Bobinas() {
               </TableBody>
             </Table>
           )}
+          <Pagination page={pg.page} totalPages={pg.totalPages} totalItems={pg.totalItems} pageSize={pg.pageSize} onPageChange={setPage} />
         </CardContent>
       </Card>
     </div>

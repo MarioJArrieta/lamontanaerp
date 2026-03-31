@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { Plus, Receipt, Trash2 } from 'lucide-react';
+import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -86,6 +87,8 @@ export default function Expenses() {
   };
 
   const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0);
+  const [page, setPage] = useState(1);
+  const pg = paginate(expenses, page);
 
   return (
     <div>
@@ -194,14 +197,14 @@ export default function Expenses() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {expenses.length === 0 ? (
+                {pg.data.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8">
                       <Receipt className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No hay gastos registrados</p>
                     </TableCell>
                   </TableRow>
-                ) : expenses.map(exp => (
+                ) : pg.data.map(exp => (
                   <TableRow key={exp.id}>
                     <TableCell>{exp.date}</TableCell>
                     <TableCell><Badge variant="secondary">{categoryLabel[exp.category] || exp.category}</Badge></TableCell>
@@ -218,6 +221,7 @@ export default function Expenses() {
               </TableBody>
             </Table>
           )}
+          <Pagination page={pg.page} totalPages={pg.totalPages} totalItems={pg.totalItems} pageSize={pg.pageSize} onPageChange={setPage} />
         </CardContent>
       </Card>
     </div>

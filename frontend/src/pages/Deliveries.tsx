@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { Truck, CheckCircle2, Clock, MapPin, CircleDollarSign } from 'lucide-react';
+import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -122,6 +123,8 @@ export default function Deliveries() {
     ? deliveries
     : deliveries.filter(d => d.delivery_employee_id === filterEmployee);
 
+  const [page, setPage] = useState(1);
+  const pg = paginate(filtered, page);
   const pendingDels = filtered.filter(d => d.status === 'pending');
   const inRouteDels = filtered.filter(d => d.status === 'in_route');
   const deliveredDels = filtered.filter(d => d.status === 'delivered');
@@ -241,14 +244,14 @@ export default function Deliveries() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.length === 0 ? (
+                {pg.data.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={10} className="text-center py-8">
                       <Truck className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No hay repartos</p>
                     </TableCell>
                   </TableRow>
-                ) : filtered.map(d => {
+                ) : pg.data.map(d => {
                   const sale = saleMap.get(d.sale_id);
                   const client = sale ? clientMap.get(sale.client_id) : undefined;
                   const hasLocation = client && client.latitude && client.longitude;
@@ -307,6 +310,7 @@ export default function Deliveries() {
               </TableBody>
             </Table>
           )}
+          <Pagination page={pg.page} totalPages={pg.totalPages} totalItems={pg.totalItems} pageSize={pg.pageSize} onPageChange={setPage} />
         </CardContent>
       </Card>
 

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { Plus, Factory, Package, AlertTriangle, BarChart3 } from 'lucide-react';
+import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import StatCard from '@/components/shared/StatCard';
 import { Button } from '@/components/ui/button';
@@ -76,6 +77,8 @@ export default function Production() {
   };
 
   const empMap = new Map(employees.map(e => [e.id, e]));
+  const [page, setPage] = useState(1);
+  const pg = paginate(productions, page);
 
   return (
     <div>
@@ -180,14 +183,14 @@ export default function Production() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {productions.length === 0 ? (
+                {pg.data.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8">
                       <Factory className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No hay produccion registrada</p>
                     </TableCell>
                   </TableRow>
-                ) : productions.map(p => (
+                ) : pg.data.map(p => (
                   <TableRow key={p.id}>
                     <TableCell>{p.date}</TableCell>
                     <TableCell className="font-medium">{empMap.get(p.employee_id)?.name || p.employee_id.slice(0, 8)}</TableCell>
@@ -200,6 +203,7 @@ export default function Production() {
               </TableBody>
             </Table>
           )}
+          <Pagination page={pg.page} totalPages={pg.totalPages} totalItems={pg.totalItems} pageSize={pg.pageSize} onPageChange={setPage} />
         </CardContent>
       </Card>
     </div>

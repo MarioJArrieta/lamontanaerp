@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { Pagination, paginate } from '@/components/ui/pagination';
 import { toast } from 'sonner';
 import { Plus, ShoppingCart, FileText, Package, Trash2, Eye } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
@@ -43,6 +44,7 @@ export default function Sales() {
   const [deletePassword, setDeletePassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [detailSale, setDetailSale] = useState<Sale | null>(null);
+  const [page, setPage] = useState(1);
 
   const today = new Date().toISOString().split('T')[0];
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
@@ -199,6 +201,8 @@ export default function Sales() {
       itemsSold.set(item.product_id, (itemsSold.get(item.product_id) || 0) + item.quantity);
     }
   }
+
+  const pg = paginate(sales, page);
 
   return (
     <div>
@@ -391,14 +395,14 @@ export default function Sales() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sales.length === 0 ? (
+                {pg.data.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-8">
                       <ShoppingCart className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No hay ventas</p>
                     </TableCell>
                   </TableRow>
-                ) : sales.map(s => (
+                ) : pg.data.map(s => (
                   <TableRow key={s.id}>
                     <TableCell>{s.date}</TableCell>
                     <TableCell className="font-medium">{clientMap.get(s.client_id)?.name || '-'}</TableCell>
@@ -434,6 +438,7 @@ export default function Sales() {
               </TableBody>
             </Table>
           )}
+          <Pagination page={pg.page} totalPages={pg.totalPages} totalItems={pg.totalItems} pageSize={pg.pageSize} onPageChange={setPage} />
         </CardContent>
       </Card>
 

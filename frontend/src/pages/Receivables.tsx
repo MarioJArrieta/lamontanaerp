@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { CheckCircle, DollarSign, AlertTriangle, Clock } from 'lucide-react';
+import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import StatCard from '@/components/shared/StatCard';
 import { Button } from '@/components/ui/button';
@@ -77,6 +78,8 @@ export default function Receivables() {
   };
 
   const clientMap = new Map(clients.map(c => [c.id, c]));
+  const [page, setPage] = useState(1);
+  const pg = paginate(sales, page);
   const cashSales = sales.filter(s => s.payment_type === 'cash');
   const creditSales = sales.filter(s => s.payment_type === 'credit');
   const totalPending = sales.reduce((s, r) => s + Number(r.total), 0);
@@ -119,14 +122,14 @@ export default function Receivables() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sales.length === 0 ? (
+                {pg.data.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8">
                       <CheckCircle className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No hay ventas pendientes</p>
                     </TableCell>
                   </TableRow>
-                ) : sales.map(s => (
+                ) : pg.data.map(s => (
                   <TableRow key={s.id}>
                     <TableCell>{s.date}</TableCell>
                     <TableCell className="font-medium">{clientMap.get(s.client_id)?.name || '-'}</TableCell>
@@ -141,6 +144,7 @@ export default function Receivables() {
               </TableBody>
             </Table>
           )}
+          <Pagination page={pg.page} totalPages={pg.totalPages} totalItems={pg.totalItems} pageSize={pg.pageSize} onPageChange={setPage} />
         </CardContent>
       </Card>
 

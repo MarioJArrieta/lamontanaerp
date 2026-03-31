@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { Plus, Users } from 'lucide-react';
+import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -26,6 +27,7 @@ export default function Employees() {
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(1);
   const [form, setForm] = useState({
     name: '', cedula: '', role: 'packer', pay_period: 'weekly',
     fixed_salary: '', rate_per_paca: '', phone: '',
@@ -94,6 +96,7 @@ export default function Employees() {
   const roleLabel: Record<string, string> = { packer: 'Empacador', delivery: 'Repartidor', secretary: 'Secretaria' };
   const payPeriodLabel: Record<string, string> = { weekly: 'Semanal', monthly: 'Mensual' };
   const roleBadgeVariant = (role: string) => role === 'packer' ? 'default' as const : role === 'delivery' ? 'secondary' as const : 'outline' as const;
+  const pg = paginate(employees, page);
 
   return (
     <div>
@@ -182,14 +185,14 @@ export default function Employees() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {employees.length === 0 ? (
+                {pg.data.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8">
                       <Users className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No hay empleados registrados</p>
                     </TableCell>
                   </TableRow>
-                ) : employees.map(emp => (
+                ) : pg.data.map(emp => (
                   <TableRow key={emp.id}>
                     <TableCell className="font-medium">{emp.name}</TableCell>
                     <TableCell>{emp.cedula}</TableCell>
@@ -209,6 +212,7 @@ export default function Employees() {
               </TableBody>
             </Table>
           )}
+          <Pagination page={pg.page} totalPages={pg.totalPages} totalItems={pg.totalItems} pageSize={pg.pageSize} onPageChange={setPage} />
         </CardContent>
       </Card>
     </div>

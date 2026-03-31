@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { Wallet, DollarSign, Calculator } from 'lucide-react';
+import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import StatCard from '@/components/shared/StatCard';
 import { Button } from '@/components/ui/button';
@@ -122,6 +123,8 @@ export default function Payroll() {
   };
 
   const empMap = new Map(employees.map(e => [e.id, e]));
+  const [page, setPage] = useState(1);
+  const pg = paginate(payrolls, page);
   const totalCalculated = payrolls.filter(p => p.status === 'calculated').reduce((s, p) => s + Number(p.net_pay), 0);
   const totalPaid = payrolls.filter(p => p.status === 'paid').reduce((s, p) => s + Number(p.net_pay), 0);
 
@@ -235,14 +238,14 @@ export default function Payroll() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {payrolls.length === 0 ? (
+                {pg.data.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-8">
                       <Wallet className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No hay nominas calculadas</p>
                     </TableCell>
                   </TableRow>
-                ) : payrolls.map(p => {
+                ) : pg.data.map(p => {
                   const emp = empMap.get(p.employee_id);
                   return (
                     <TableRow key={p.id}>
@@ -277,6 +280,7 @@ export default function Payroll() {
               </TableBody>
             </Table>
           )}
+          <Pagination page={pg.page} totalPages={pg.totalPages} totalItems={pg.totalItems} pageSize={pg.pageSize} onPageChange={setPage} />
         </CardContent>
       </Card>
     </div>
