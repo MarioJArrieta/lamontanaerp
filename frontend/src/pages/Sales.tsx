@@ -197,7 +197,7 @@ export default function Sales() {
 
   const itemsSold = new Map<string, number>();
   for (const s of sales) {
-    for (const item of s.items) {
+    for (const item of (s.items || [])) {
       itemsSold.set(item.product_id, (itemsSold.get(item.product_id) || 0) + item.quantity);
     }
   }
@@ -407,10 +407,10 @@ export default function Sales() {
                     <TableCell>{s.date}</TableCell>
                     <TableCell className="font-medium">{clientMap.get(s.client_id)?.name || '-'}</TableCell>
                     <TableCell className="text-xs">
-                      {s.items.slice(0, 2).map((item, i) => (
+                      {(s.items || []).slice(0, 2).map((item, i) => (
                         <span key={i}>{i > 0 && ', '}{item.quantity} {productMap.get(item.product_id)?.name || 'Producto'}</span>
                       ))}
-                      {s.items.length > 2 && <span className="text-muted-foreground"> +{s.items.length - 2} más</span>}
+                      {(s.items || []).length > 2 && <span className="text-muted-foreground"> +{s.items.length - 2} más</span>}
                     </TableCell>
                     <TableCell className="font-semibold">{formatMoney(s.total)}</TableCell>
                     <TableCell><Badge variant="outline">{paymentLabel[s.payment_type] || s.payment_type}</Badge></TableCell>
@@ -495,7 +495,7 @@ export default function Sales() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {detailSale.items.map((item, i) => (
+                  {(detailSale.items || []).map((item, i) => (
                     <TableRow key={i}>
                       <TableCell>{productMap.get(item.product_id)?.name || 'Producto'}</TableCell>
                       <TableCell className="text-right">{item.quantity}</TableCell>
