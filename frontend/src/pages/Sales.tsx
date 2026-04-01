@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import { toast } from 'sonner';
-import { Plus, ShoppingCart, FileText, Package, Trash2, Eye, Search } from 'lucide-react';
+import { Plus, ShoppingCart, FileText, Package, Trash2, Eye, Search, Pencil } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -45,6 +45,9 @@ export default function Sales() {
   const [deletePassword, setDeletePassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [detailSale, setDetailSale] = useState<Sale | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editSale, setEditSale] = useState<Sale | null>(null);
+  const [editForm, setEditForm] = useState({ date: '', delivery_employee_id: '', notes: '' });
   const [searchQuery, setSearchQuery] = usePersistedState('sales_search', '');
   const [page, setPage] = useState(1);
 
@@ -170,6 +173,33 @@ export default function Sales() {
       await api.post(`/sales/${deleteSaleId}/delete`, { admin_password: deletePassword });
       toast.success('Venta eliminada');
       setDeleteOpen(false);
+      fetchData();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openEdit = (sale: Sale) => {
+    setEditSale(sale);
+    setEditForm({ date: sale.date, delivery_employee_id: sale.delivery_employee_id || '', notes: sale.notes || '' });
+    setEditOpen(true);
+  };
+
+  const handleEdit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editSale) return;
+    setSaving(true);
+    try {
+      await api.put(`/sales/${editSale.id}`, {
+        date: editForm.date,
+        delivery_employee_id: editForm.delivery_employee_id || null,
+        notes: editForm.notes || null,
+      });
+      toast.success('Venta actualizada');
+      setEditOpen(false);
       fetchData();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
@@ -451,7 +481,12 @@ export default function Sales() {
                           <FileText className="w-3.5 h-3.5 mr-1" />Factura
                         </Button>
                         {s.status === 'pending' && (
-                          <Button size="sm" variant="default" onClick={() => openPayDialog(s.id)}>Pagar</Button>
+                          <>
+                            <Button size="sm" variant="ghost" onClick={() => openEdit(s)} title="Editar">
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button size="sm" variant="default" onClick={() => openPayDialog(s.id)}>Pagar</Button>
+                          </>
                         )}
                         <Button size="sm" variant="ghost" className="text-destructive" onClick={() => openDeleteDialog(s.id)}>
                           <Trash2 className="w-3.5 h-3.5" />
@@ -537,6 +572,32 @@ export default function Sales() {
               <Button variant="outline" className="w-full" onClick={() => setDetailSale(null)}>Cerrar</Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Editar venta</DialogTitle></DialogHeader>
+          <form onSubmit={handleEdit} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Fecha</Label>
+              <Input type="date" value={editForm.date} onChange={e => setEditForm({...editForm, date: e.target.value})} required />
+            </div>
+            <div className="space-y-2">
+              <Label>Repartidor</Label>
+              <Select value={editForm.delivery_employee_id || null} onValueChange={v => setEditForm({...editForm, delivery_employee_id: sv(v)})}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar">{(v: string) => deliveryEmployees.find(e => e.id === v)?.name || 'Seleccionar'}</SelectValue></SelectTrigger>
+                <SelectContent>
+                  {deliveryEmployees.map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Notas</Label>
+              <Input value={editForm.notes} onChange={e => setEditForm({...editForm, notes: e.target.value})} />
+            </div>
+            <SubmitButton loading={saving} className="w-full">Guardar cambios</SubmitButton>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

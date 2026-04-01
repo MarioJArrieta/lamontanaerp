@@ -297,6 +297,12 @@ class SaleResponse(BaseModel):
     created_at: datetime
 
 
+class SaleUpdate(BaseModel):
+    date: date | None = None
+    delivery_employee_id: uuid.UUID | None = None
+    notes: str | None = None
+
+
 class SaleAssignDelivery(BaseModel):
     delivery_employee_id: uuid.UUID
 

@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.schemas import SaleAssignDelivery, SaleCreate, SaleDeleteConfirm, SaleMarkPaid, SaleResponse
+from app.api.v1.schemas import SaleAssignDelivery, SaleCreate, SaleDeleteConfirm, SaleMarkPaid, SaleResponse, SaleUpdate
 from app.application.services.sale_service import SaleService
 from app.auth.dependencies import get_current_user, require_role
 from app.domain.aggregates.user import User
@@ -61,6 +61,20 @@ async def create_sale(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return sale
+
+
+@router.put("/{sale_id}", response_model=SaleResponse)
+async def update_sale(
+    sale_id: uuid.UUID,
+    body: SaleUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: AdminOrSecretary,
+):
+    service = SaleService(db)
+    try:
+        return await service.update_sale(sale_id, body.model_dump(exclude_unset=True))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/{sale_id}/assign-delivery", response_model=SaleResponse)

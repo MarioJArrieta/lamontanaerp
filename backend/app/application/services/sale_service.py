@@ -175,6 +175,20 @@ class SaleService:
 
         return sale
 
+    async def update_sale(
+        self, sale_id: uuid.UUID, updates: dict
+    ) -> Sale:
+        sale = await self.sale_repo.get_by_id_with_items(sale_id)
+        if not sale:
+            raise ValueError("Sale not found")
+        if sale.status == SaleStatus.PAID:
+            raise ValueError("No se puede editar una venta ya cobrada")
+        for key, value in updates.items():
+            if hasattr(sale, key):
+                setattr(sale, key, value)
+        await self.session.flush()
+        return sale
+
     async def assign_delivery(
         self, sale_id: uuid.UUID, delivery_employee_id: uuid.UUID
     ) -> Sale:
