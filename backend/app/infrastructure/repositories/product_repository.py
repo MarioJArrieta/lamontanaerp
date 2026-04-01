@@ -13,6 +13,6 @@ class ProductRepository(BaseRepository[Product]):
     async def get_by_type(self, product_type: ProductType) -> Product | None:
         stmt = select(Product).where(
             Product.product_type == product_type, Product.is_active == True  # noqa: E712
-        )
+        ).limit(1)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
