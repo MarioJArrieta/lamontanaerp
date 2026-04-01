@@ -17,3 +17,4 @@ class Expense(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    receipt_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

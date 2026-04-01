@@ -52,6 +52,7 @@ async def create_expense(
         description=body.description,
         amount=body.amount,
         notes=body.notes,
+        receipt_url=body.receipt_url,
     )
 
 

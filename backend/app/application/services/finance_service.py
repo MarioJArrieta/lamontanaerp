@@ -36,6 +36,7 @@ class FinanceService:
         description: str,
         amount: Decimal,
         notes: str | None = None,
+        receipt_url: str | None = None,
     ) -> Expense:
         expense = Expense(
             date=expense_date,
@@ -43,6 +44,7 @@ class FinanceService:
             description=description,
             amount=amount,
             notes=notes,
+            receipt_url=receipt_url,
         )
         self.session.add(expense)
         await self.session.flush()

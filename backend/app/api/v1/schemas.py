@@ -417,6 +417,7 @@ class ExpenseCreate(BaseModel):
     description: str
     amount: Decimal
     notes: str | None = None
+    receipt_url: str | None = None
 
 
 class ExpenseUpdate(BaseModel):
@@ -425,6 +426,7 @@ class ExpenseUpdate(BaseModel):
     description: str | None = None
     amount: Decimal | None = None
     notes: str | None = None
+    receipt_url: str | None = None
 
 
 class ExpenseResponse(BaseModel):
@@ -435,6 +437,7 @@ class ExpenseResponse(BaseModel):
     description: str
     amount: Decimal
     notes: str | None
+    receipt_url: str | None
     created_at: datetime
 
 

@@ -208,6 +208,7 @@ export interface Expense {
   description: string;
   amount: string;
   notes: string | null;
+  receipt_url: string | null;
   created_at: string;
 }
 
