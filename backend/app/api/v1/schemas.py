@@ -298,7 +298,7 @@ class SaleResponse(BaseModel):
 
 
 class SaleUpdate(BaseModel):
-    date: date | None = None
+    date: Optional[date] = None
     delivery_employee_id: uuid.UUID | None = None
     notes: str | None = None
 
