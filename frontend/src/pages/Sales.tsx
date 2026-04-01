@@ -466,9 +466,11 @@ export default function Sales() {
                         {s.status === 'pending' && (
                           <Button size="sm" variant="default" onClick={() => openPayDialog(s.id)}>Pagar</Button>
                         )}
-                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => openDeleteDialog(s.id)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                        {s.date === today && (
+                          <Button size="sm" variant="ghost" className="text-destructive" onClick={() => openDeleteDialog(s.id)}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

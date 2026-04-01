@@ -234,6 +234,10 @@ class SaleService:
         if not sale:
             raise ValueError("Venta no encontrada")
 
+        # Only allow deletion on the same day as the sale
+        if sale.date != date.today():
+            raise ValueError("Solo se pueden eliminar ventas del dia actual")
+
         # Reverse loyalty points
         await self.loyalty_service.reverse_points_for_sale(sale.client_id, sale_id)
 
