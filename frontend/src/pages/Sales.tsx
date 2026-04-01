@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import { toast } from 'sonner';
-import { Plus, ShoppingCart, FileText, Package, Trash2, Eye } from 'lucide-react';
+import { Plus, ShoppingCart, FileText, Package, Trash2, Eye, Search } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -44,6 +44,7 @@ export default function Sales() {
   const [deletePassword, setDeletePassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [detailSale, setDetailSale] = useState<Sale | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
 
   const today = new Date().toISOString().split('T')[0];
@@ -190,19 +191,33 @@ export default function Sales() {
   const deliveryEmployees = employees.filter(e => e.role === 'delivery' && e.is_active);
   const paymentLabel: Record<string, string> = { cash: 'Contado', credit: 'Credito' };
 
-  const paidSales = sales.filter(s => s.status === 'paid');
-  const pendingSales = sales.filter(s => s.status === 'pending');
+  const filteredSales = useMemo(() => {
+    if (!searchQuery.trim()) return sales;
+    const q = searchQuery.toLowerCase();
+    return sales.filter(s => {
+      const clientName = clientMap.get(s.client_id)?.name?.toLowerCase() || '';
+      const clientZone = clientMap.get(s.client_id)?.delivery_zone?.toLowerCase() || '';
+      const empName = employees.find(e => e.id === s.delivery_employee_id)?.name?.toLowerCase() || '';
+      const notes = s.notes?.toLowerCase() || '';
+      const status = statusLabel[s.status]?.toLowerCase() || '';
+      const payType = paymentLabel[s.payment_type]?.toLowerCase() || '';
+      return clientName.includes(q) || clientZone.includes(q) || empName.includes(q) || notes.includes(q) || status.includes(q) || payType.includes(q) || s.date.includes(q);
+    });
+  }, [sales, searchQuery, clients, employees]);
+
+  const paidSales = filteredSales.filter(s => s.status === 'paid');
+  const pendingSales = filteredSales.filter(s => s.status === 'pending');
   const paidTotal = paidSales.reduce((sum, s) => sum + Number(s.total), 0);
   const pendingTotal = pendingSales.reduce((sum, s) => sum + Number(s.total), 0);
 
   const itemsSold = new Map<string, number>();
-  for (const s of sales) {
+  for (const s of filteredSales) {
     for (const item of (s.items || [])) {
       itemsSold.set(item.product_id, (itemsSold.get(item.product_id) || 0) + item.quantity);
     }
   }
 
-  const pg = paginate(sales, page);
+  const pg = paginate(filteredSales, page);
 
   return (
     <div>
@@ -326,7 +341,7 @@ export default function Sales() {
         }
       />
 
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
         <div className="flex items-center gap-2">
           <Label className="text-sm whitespace-nowrap">Desde</Label>
           <Input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} className="w-auto" />
@@ -334,6 +349,15 @@ export default function Sales() {
         <div className="flex items-center gap-2">
           <Label className="text-sm whitespace-nowrap">Hasta</Label>
           <Input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} className="w-auto" />
+        </div>
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por cliente, zona, repartidor, notas..."
+            value={searchQuery}
+            onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
+            className="pl-9"
+          />
         </div>
       </div>
 
