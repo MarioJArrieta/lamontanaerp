@@ -127,10 +127,10 @@ export default function Production() {
                 <div className="space-y-2">
                   <Label>Bobina (opcional)</Label>
                   <Select value={form.bobina_id || null} onValueChange={v => setForm({...form, bobina_id: sv(v)})}>
-                    <SelectTrigger><SelectValue placeholder="Ninguna">{(v: string) => { const b = bobinas.find(b => b.id === v); return b ? `${b.weight_kg}kg - ${b.remaining_pacas} restantes` : 'Ninguna'; }}</SelectValue></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Ninguna">{(v: string) => { const b = bobinas.find(b => b.id === v); return b ? `${b.code || b.id.slice(0, 8)} - ${b.weight_kg}kg - ${b.remaining_pacas} restantes` : 'Ninguna'; }}</SelectValue></SelectTrigger>
                     <SelectContent>
                       {bobinas.map(b => (
-                        <SelectItem key={b.id} value={b.id}>{b.weight_kg}kg - {b.remaining_pacas} pacas restantes</SelectItem>
+                        <SelectItem key={b.id} value={b.id}>{b.code || b.id.slice(0, 8)} - {b.weight_kg}kg - {b.remaining_pacas} pacas restantes</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
