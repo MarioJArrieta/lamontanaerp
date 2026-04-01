@@ -368,6 +368,19 @@ export default function Sales() {
             <p className="text-[10px] text-muted-foreground">Pagadas</p>
             <p className="text-sm font-bold truncate">{formatMoney(paidTotal)}</p>
             <p className="text-[10px] text-muted-foreground">{paidSales.length} ventas</p>
+            <div className="mt-1 space-y-0.5">
+              {Object.entries(
+                paidSales.reduce<Record<string, number>>((acc, s) => {
+                  const m = s.payment_method || 'sin_metodo';
+                  acc[m] = (acc[m] || 0) + Number(s.total);
+                  return acc;
+                }, {})
+              ).map(([method, total]) => (
+                <p key={method} className="text-[10px]">
+                  <span className="font-medium">{methodLabel[method] || method}:</span> {formatMoney(total)}
+                </p>
+              ))}
+            </div>
           </CardContent>
         </Card>
         <Card>
