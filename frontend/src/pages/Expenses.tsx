@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { usePersistedState } from '@/hooks/usePersistedState';
 import { toast } from 'sonner';
 import { Plus, Receipt, Trash2, Paperclip, Eye } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
@@ -47,8 +48,8 @@ export default function Expenses() {
 
   const today = new Date().toISOString().split('T')[0];
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
-  const [filterFrom, setFilterFrom] = useState(monthAgo);
-  const [filterTo, setFilterTo] = useState(today);
+  const [filterFrom, setFilterFrom] = usePersistedState('expenses_from', monthAgo);
+  const [filterTo, setFilterTo] = usePersistedState('expenses_to', today);
 
   const [form, setForm] = useState({
     date: today, category: '', description: '', amount: '', notes: '', receipt_url: '',

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { usePersistedState } from '@/hooks/usePersistedState';
 import { toast } from 'sonner';
 import { TrendingUp, TrendingDown, DollarSign, BarChart3, ShoppingCart, HandCoins } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
@@ -27,8 +28,8 @@ export default function FinanceKPIs() {
 
   const today = new Date().toISOString().split('T')[0];
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
-  const [filterFrom, setFilterFrom] = useState(monthAgo);
-  const [filterTo, setFilterTo] = useState(today);
+  const [filterFrom, setFilterFrom] = usePersistedState('kpis_from', monthAgo);
+  const [filterTo, setFilterTo] = usePersistedState('kpis_to', today);
 
   const fetchData = () => {
     setLoading(true);

@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { usePersistedState } from '@/hooks/usePersistedState';
 import { toast } from 'sonner';
 import { Plus, Factory, Package, AlertTriangle, BarChart3 } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
@@ -26,8 +27,8 @@ export default function Production() {
 
   const today = new Date().toISOString().split('T')[0];
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
-  const [filterFrom, setFilterFrom] = useState(monthAgo);
-  const [filterTo, setFilterTo] = useState(today);
+  const [filterFrom, setFilterFrom] = usePersistedState('production_from', monthAgo);
+  const [filterTo, setFilterTo] = usePersistedState('production_to', today);
 
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({

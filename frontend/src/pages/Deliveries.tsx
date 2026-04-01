@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { usePersistedState } from '@/hooks/usePersistedState';
 import { toast } from 'sonner';
 import { Truck, CheckCircle2, Clock, MapPin, CircleDollarSign, Navigation } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
@@ -34,9 +35,9 @@ export default function Deliveries() {
 
   const today = new Date().toISOString().split('T')[0];
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
-  const [filterFrom, setFilterFrom] = useState(weekAgo);
-  const [filterTo, setFilterTo] = useState(today);
-  const [filterEmployee, setFilterEmployee] = useState('all');
+  const [filterFrom, setFilterFrom] = usePersistedState('deliveries_from', weekAgo);
+  const [filterTo, setFilterTo] = usePersistedState('deliveries_to', today);
+  const [filterEmployee, setFilterEmployee] = usePersistedState('deliveries_employee', 'all');
 
   // Map dialog
   const [mapOpen, setMapOpen] = useState(false);

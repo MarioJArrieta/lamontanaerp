@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { usePersistedState } from '@/hooks/usePersistedState';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import { toast } from 'sonner';
 import { Plus, ShoppingCart, FileText, Package, Trash2, Eye, Search } from 'lucide-react';
@@ -44,13 +45,13 @@ export default function Sales() {
   const [deletePassword, setDeletePassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [detailSale, setDetailSale] = useState<Sale | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = usePersistedState('sales_search', '');
   const [page, setPage] = useState(1);
 
   const today = new Date().toISOString().split('T')[0];
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
-  const [filterFrom, setFilterFrom] = useState(monthAgo);
-  const [filterTo, setFilterTo] = useState(today);
+  const [filterFrom, setFilterFrom] = usePersistedState('sales_from', monthAgo);
+  const [filterTo, setFilterTo] = usePersistedState('sales_to', today);
 
   const [form, setForm] = useState({
     date: today, client_id: '', delivery_employee_id: '', payment_type: 'cash', notes: '',
