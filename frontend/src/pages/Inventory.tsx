@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Warehouse } from 'lucide-react';
+import { toast } from 'sonner';
+import { Warehouse, RefreshCw } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -14,7 +16,8 @@ export default function Inventory() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchData = () => {
+    setLoading(true);
     Promise.all([
       api.get('/inventory'),
       api.get('/inventory/movements'),
@@ -24,7 +27,18 @@ export default function Inventory() {
       setMovements(movRes.data);
       setProducts(prodRes.data);
     }).finally(() => setLoading(false));
-  }, []);
+  };
+  useEffect(fetchData, []);
+
+  const handleRecalculate = async () => {
+    try {
+      await api.post('/inventory/recalculate');
+      toast.success('Stock recalculado');
+      fetchData();
+    } catch {
+      toast.error('Error al recalcular');
+    }
+  };
 
   const productMap = new Map(products.map(p => [p.id, p]));
   const [page, setPage] = useState(1);
@@ -45,7 +59,15 @@ export default function Inventory() {
 
   return (
     <div>
-      <PageHeader title="Inventario" description="Stock actual y movimientos" />
+      <PageHeader
+        title="Inventario"
+        description="Stock actual y movimientos"
+        action={
+          <Button variant="outline" onClick={handleRecalculate}>
+            <RefreshCw className="w-4 h-4 mr-2" />Recalcular stock
+          </Button>
+        }
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         {inventory.map(inv => {

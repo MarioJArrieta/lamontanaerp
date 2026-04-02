@@ -39,6 +39,15 @@ async def adjust_inventory(
     )
 
 
+@router.post("/recalculate", response_model=list[InventoryResponse])
+async def recalculate_inventory(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: AdminUser,
+):
+    service = InventoryService(db)
+    return await service.recalculate()
+
+
 @router.get("/movements", response_model=list[InventoryMovementResponse])
 async def list_movements(
     db: Annotated[AsyncSession, Depends(get_db)],

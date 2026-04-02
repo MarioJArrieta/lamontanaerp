@@ -30,6 +30,9 @@ class InventoryService:
             notes=notes,
         )
 
+    async def recalculate(self) -> list[Inventory]:
+        return await self.repo.recalculate_all()
+
     async def get_movements(
         self, product_id: uuid.UUID | None = None, limit: int = 100
     ) -> list[InventoryMovement]:

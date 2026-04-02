@@ -52,6 +52,25 @@ class InventoryRepository:
         await self.session.flush()
         return inv
 
+    async def recalculate_all(self) -> list[Inventory]:
+        """Recalculate inventory quantities from movement history."""
+        from sqlalchemy import func
+        # Sum all movements per product
+        stmt = (
+            select(InventoryMovement.product_id, func.sum(InventoryMovement.quantity))
+            .group_by(InventoryMovement.product_id)
+        )
+        result = await self.session.execute(stmt)
+        totals = {row[0]: int(row[1]) for row in result.all()}
+
+        # Update each inventory record
+        inventories = await self.get_all()
+        for inv in inventories:
+            inv.quantity = totals.get(inv.product_id, 0)
+
+        await self.session.flush()
+        return inventories
+
     async def get_movements(
         self, product_id: uuid.UUID | None = None, limit: int = 100
     ) -> list[InventoryMovement]:
