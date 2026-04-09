@@ -26,6 +26,8 @@ class ClientType(str, enum.Enum):
 class ProductType(str, enum.Enum):
     PACA_X40 = "paca_x40"
     BOTELLON_20L = "botellon_20l"
+    PIEDRA_FILTRO = "piedra_filtro"
+    RECARGA_BOTELLON = "recarga_botellon"
 
 
 class PaymentType(str, enum.Enum):
