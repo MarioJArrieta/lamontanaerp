@@ -66,8 +66,11 @@ export default function OtherIncome() {
       });
       toast.success('Ingreso registrado');
       setOpen(false);
+      const needsFilterUpdate = form.date < filterFrom || form.date > filterTo;
+      if (form.date < filterFrom) setFilterFrom(form.date);
+      if (form.date > filterTo) setFilterTo(form.date);
       setForm({ date: today, category: '', description: '', amount: '', notes: '' });
-      fetchData();
+      if (!needsFilterUpdate) fetchData();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
       toast.error(msg);
