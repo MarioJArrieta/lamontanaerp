@@ -11,7 +11,7 @@ import {
   ShoppingCart,
   CreditCard,
   Truck,
-  Wallet,
+
   LogOut,
   Droplets,
   Settings,
@@ -80,7 +80,6 @@ const navSections: NavSection[] = [
     collapsible: true,
     items: [
       { to: '/employees', icon: Users, label: 'Empleados', roles: ['admin'] },
-      { to: '/payroll', icon: Wallet, label: 'Nomina', roles: ['admin'] },
     ],
   },
   {
@@ -126,7 +125,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-64 bg-sidebar text-sidebar-foreground flex flex-col min-h-screen">
+    <aside className="w-64 bg-sidebar text-sidebar-foreground flex flex-col h-screen sticky top-0">
       <div className="p-6">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-sidebar-primary flex items-center justify-center">

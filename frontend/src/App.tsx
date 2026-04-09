@@ -12,7 +12,7 @@ import Inventory from '@/pages/Inventory';
 import Sales from '@/pages/Sales';
 import Receivables from '@/pages/Receivables';
 import Deliveries from '@/pages/Deliveries';
-import Payroll from '@/pages/Payroll';
+
 import Settings from '@/pages/Settings';
 import Expenses from '@/pages/Expenses';
 import OtherIncome from '@/pages/OtherIncome';
@@ -48,7 +48,7 @@ export default function App() {
           <Route path="sales" element={<Sales />} />
           <Route path="receivables" element={<Receivables />} />
           <Route path="deliveries" element={<Deliveries />} />
-          <Route path="payroll" element={<Payroll />} />
+
           <Route path="expenses" element={<Expenses />} />
           <Route path="other-income" element={<OtherIncome />} />
           <Route path="finance-kpis" element={<FinanceKPIs />} />

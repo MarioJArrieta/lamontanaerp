@@ -1,7 +1,7 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import select, func
+from sqlalchemy import case, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -24,7 +24,37 @@ class DeliveryRepository(BaseRepository[Delivery]):
                 Delivery.delivery_employee_id == employee_id,
                 Delivery.date == target_date,
             )
-            .order_by(Delivery.created_at)
+            .order_by(
+                case(
+                    (Delivery.status == DeliveryStatus.PENDING, 0),
+                    (Delivery.status == DeliveryStatus.IN_ROUTE, 1),
+                    else_=2,
+                ),
+                Delivery.created_at,
+            )
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_by_employee_date_range(
+        self, employee_id: uuid.UUID, from_date: date, to_date: date
+    ) -> list[Delivery]:
+        stmt = (
+            select(Delivery)
+            .options(selectinload(Delivery.sale), selectinload(Delivery.delivery_employee))
+            .where(
+                Delivery.delivery_employee_id == employee_id,
+                Delivery.date >= from_date,
+                Delivery.date <= to_date,
+            )
+            .order_by(
+                case(
+                    (Delivery.status == DeliveryStatus.PENDING, 0),
+                    (Delivery.status == DeliveryStatus.IN_ROUTE, 1),
+                    else_=2,
+                ),
+                Delivery.date.desc(),
+            )
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
@@ -34,7 +64,14 @@ class DeliveryRepository(BaseRepository[Delivery]):
             select(Delivery)
             .options(selectinload(Delivery.sale), selectinload(Delivery.delivery_employee))
             .where(Delivery.date >= from_date, Delivery.date <= to_date)
-            .order_by(Delivery.date.desc())
+            .order_by(
+                case(
+                    (Delivery.status == DeliveryStatus.PENDING, 0),
+                    (Delivery.status == DeliveryStatus.IN_ROUTE, 1),
+                    else_=2,
+                ),
+                Delivery.date.desc(),
+            )
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())

@@ -14,7 +14,7 @@ from app.api.v1.production_router import router as production_router
 from app.api.v1.receivable_router import router as receivable_router
 from app.api.v1.sale_router import router as sale_router
 from app.api.v1.delivery_router import router as delivery_router
-from app.api.v1.payroll_router import router as payroll_router
+
 from app.api.v1.settings_router import router as settings_router
 from app.api.v1.finance_router import router as finance_router
 from app.api.v1.loyalty_router import router as loyalty_router
@@ -28,6 +28,31 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Create tables on startup (dev only; use Alembic in prod)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Add new columns if they don't exist (create_all won't alter existing tables)
+        from sqlalchemy import text
+        for col, coldef in [
+            ("is_paid", "BOOLEAN NOT NULL DEFAULT false"),
+            ("payment_amount", "NUMERIC(12,2)"),
+        ]:
+            await conn.execute(text(
+                f"ALTER TABLE productions ADD COLUMN IF NOT EXISTS {col} {coldef}"
+            ))
+        # Add employee_id to users if not exists
+        await conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS employee_id UUID REFERENCES employees(id)"
+        ))
+        # Link Esteban01 user to Esteban Barroso employee
+        await conn.execute(text(
+            "UPDATE users SET full_name = 'Esteban Barroso', "
+            "employee_id = (SELECT id FROM employees WHERE name = 'Esteban Barroso' LIMIT 1) "
+            "WHERE username = 'Esteban01' AND employee_id IS NULL"
+        ))
+        # Sync deliveries: mark as delivered if sale is already paid
+        await conn.execute(text(
+            "UPDATE deliveries SET status = 'DELIVERED' "
+            "WHERE status != 'DELIVERED' "
+            "AND sale_id IN (SELECT id FROM sales WHERE status = 'PAID')"
+        ))
     yield
     await engine.dispose()
 
@@ -61,7 +86,7 @@ app.include_router(inventory_router, prefix="/api/v1")
 app.include_router(sale_router, prefix="/api/v1")
 app.include_router(receivable_router, prefix="/api/v1")
 app.include_router(delivery_router, prefix="/api/v1")
-app.include_router(payroll_router, prefix="/api/v1")
+
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(finance_router, prefix="/api/v1")
 app.include_router(loyalty_router, prefix="/api/v1")

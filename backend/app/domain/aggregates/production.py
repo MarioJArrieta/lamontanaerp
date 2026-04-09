@@ -23,6 +23,10 @@ class Production(Base):
     pacas_produced: Mapped[int] = mapped_column(nullable=False, default=0)
     botellones_produced: Mapped[int] = mapped_column(nullable=False, default=0)
     waste_pacas: Mapped[int] = mapped_column(nullable=False, default=0)
+    is_paid: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="false")
+    payment_amount: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(12, 2), nullable=True
+    )
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     employee = relationship("Employee")

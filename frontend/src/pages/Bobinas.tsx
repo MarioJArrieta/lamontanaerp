@@ -1,6 +1,7 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, useMemo, type FormEvent } from 'react';
+import { usePersistedState } from '@/hooks/usePersistedState';
 import { toast } from 'sonner';
-import { Plus, Cylinder, Weight, Package, CircleDollarSign, CircleCheck } from 'lucide-react';
+import { Plus, Cylinder, Weight, Package, CircleDollarSign, CircleCheck, Search } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import StatCard from '@/components/shared/StatCard';
@@ -27,10 +28,19 @@ export default function Bobinas() {
   const today = new Date().toISOString().split('T')[0];
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = usePersistedState('bobinas_search', '');
+  const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+  const [filterFrom, setFilterFrom] = usePersistedState('bobinas_from', monthAgo);
+  const [filterTo, setFilterTo] = usePersistedState('bobinas_to', today);
   const [form, setForm] = useState({ code: '', purchase_date: today, weight_kg: '', cost: '', estimated_pacas: '250', supplier: '', notes: '' });
 
   const fetchData = () => {
-    api.get('/bobinas').then(r => setBobinas(r.data)).finally(() => setLoading(false));
+    api.get('/bobinas').then(r => {
+      const sorted = [...(r.data as Bobina[])].sort((a, b) =>
+        (b.purchase_date || '').localeCompare(a.purchase_date || '')
+      );
+      setBobinas(sorted);
+    }).finally(() => setLoading(false));
   };
   useEffect(fetchData, []);
 
@@ -94,7 +104,29 @@ export default function Bobinas() {
     }
   };
 
-  const pg = paginate(bobinas, page);
+  const filtered = useMemo(() => {
+    return bobinas.filter(b => {
+      const d = b.purchase_date || '';
+      if (filterFrom && d < filterFrom) return false;
+      if (filterTo && d > filterTo) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        const statusLabel = b.is_exhausted ? 'agotada' : 'disponible';
+        return (
+          (b.code || '').toLowerCase().includes(q) ||
+          d.includes(q) ||
+          (b.supplier || '').toLowerCase().includes(q) ||
+          (b.notes || '').toLowerCase().includes(q) ||
+          statusLabel.includes(q) ||
+          String(b.weight_kg).includes(q) ||
+          String(b.remaining_pacas).includes(q)
+        );
+      }
+      return true;
+    });
+  }, [bobinas, filterFrom, filterTo, search]);
+
+  const pg = paginate(filtered, page);
 
   return (
     <div>
@@ -152,18 +184,38 @@ export default function Bobinas() {
         }
       />
 
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div className="flex items-center gap-2">
+          <Label className="text-sm whitespace-nowrap">Desde</Label>
+          <Input type="date" value={filterFrom} onChange={e => { setFilterFrom(e.target.value); setPage(1); }} className="w-auto" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Label className="text-sm whitespace-nowrap">Hasta</Label>
+          <Input type="date" value={filterTo} onChange={e => { setFilterTo(e.target.value); setPage(1); }} className="w-auto" />
+        </div>
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por codigo, proveedor, notas, estado..."
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
+            className="pl-8"
+          />
+        </div>
+      </div>
+
       {(() => {
-        const available = bobinas.filter(b => !b.is_exhausted);
-        const totalKg = bobinas.reduce((s, b) => s + Number(b.weight_kg), 0);
+        const available = filtered.filter(b => !b.is_exhausted);
+        const totalKg = filtered.reduce((s, b) => s + Number(b.weight_kg), 0);
         const availableKg = available.reduce((s, b) => s + Number(b.weight_kg), 0);
         const totalPacasRemaining = available.reduce((s, b) => s + b.remaining_pacas, 0);
-        const totalCost = bobinas.reduce((s, b) => s + Number(b.cost), 0);
+        const totalCost = filtered.reduce((s, b) => s + Number(b.cost), 0);
         return (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <StatCard title="Total kilos" value={`${totalKg.toLocaleString('es-CO')} kg`} icon={Weight} subtitle={`${availableKg.toLocaleString('es-CO')} kg disponibles`} />
             <StatCard title="Pacas restantes" value={totalPacasRemaining.toLocaleString('es-CO')} icon={Package} subtitle={`${available.length} bobinas activas`} />
-            <StatCard title="Inversion total" value={formatMoney(totalCost)} icon={CircleDollarSign} subtitle={`${bobinas.length} bobinas`} />
-            <StatCard title="Disponibles" value={available.length} icon={CircleCheck} subtitle={`${bobinas.filter(b => b.is_exhausted).length} agotadas`} />
+            <StatCard title="Inversion total" value={formatMoney(totalCost)} icon={CircleDollarSign} subtitle={`${filtered.length} bobinas`} />
+            <StatCard title="Disponibles" value={available.length} icon={CircleCheck} subtitle={`${filtered.filter(b => b.is_exhausted).length} agotadas`} />
           </div>
         );
       })()}

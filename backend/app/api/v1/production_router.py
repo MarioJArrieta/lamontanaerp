@@ -1,10 +1,11 @@
+import uuid
 from datetime import date, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.schemas import ProductionCreate, ProductionResponse, ProductionSummaryResponse
+from app.api.v1.schemas import ProductionCreate, ProductionUpdate, ProductionResponse, ProductionSummaryResponse
 from app.application.services.production_service import ProductionService
 from app.auth.dependencies import require_role
 from app.domain.aggregates.user import User
@@ -47,6 +48,48 @@ async def register_production(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return production
+
+
+@router.put("/{production_id}", response_model=ProductionResponse)
+async def update_production(
+    production_id: uuid.UUID,
+    body: ProductionUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: AdminUser,
+):
+    service = ProductionService(db)
+    try:
+        return await service.update_production(
+            production_id, body.model_dump(exclude_none=True)
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.delete("/{production_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_production(
+    production_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: AdminUser,
+):
+    service = ProductionService(db)
+    try:
+        await service.delete_production(production_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/{production_id}/pay", response_model=ProductionResponse)
+async def pay_production(
+    production_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: AdminUser,
+):
+    service = ProductionService(db)
+    try:
+        return await service.pay_production(production_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/summary", response_model=ProductionSummaryResponse)

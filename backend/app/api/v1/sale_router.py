@@ -96,7 +96,7 @@ async def mark_paid(
     sale_id: uuid.UUID,
     body: SaleMarkPaid,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: AdminOrSecretary,
+    _: Annotated[User, Depends(require_role(UserRole.ADMIN, UserRole.SECRETARY, UserRole.DELIVERY))],
 ):
     service = SaleService(db)
     try:

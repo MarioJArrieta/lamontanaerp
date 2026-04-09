@@ -135,8 +135,8 @@ export default function Expenses() {
                   </div>
                   <div className="space-y-2">
                     <Label>Categoria</Label>
-                    <Select value={form.category || null} onValueChange={v => setForm({ ...form, category: sv(v) })}>
-                      <SelectTrigger><SelectValue placeholder="Seleccionar">{(v: string) => categoryLabel[v] || 'Seleccionar'}</SelectValue></SelectTrigger>
+                    <Select value={form.category || undefined} onValueChange={v => setForm({ ...form, category: sv(v) })}>
+                      <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="raw_material">Materia prima</SelectItem>
                         <SelectItem value="services">Servicios</SelectItem>

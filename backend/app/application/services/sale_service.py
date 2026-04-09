@@ -26,6 +26,7 @@ from app.config import get_settings
 from app.application.services.loyalty_service import LoyaltyService
 from app.infrastructure.repositories import (
     ClientRepository,
+    DeliveryRepository,
     EmployeeRepository,
     InventoryRepository,
     ProductRepository,
@@ -42,6 +43,7 @@ class SaleService:
         self.employee_repo = EmployeeRepository(session)
         self.inventory_repo = InventoryRepository(session)
         self.receivable_repo = ReceivableRepository(session)
+        self.delivery_repo = DeliveryRepository(session)
         self.loyalty_service = LoyaltyService(session)
         self.session = session
 
@@ -212,6 +214,12 @@ class SaleService:
         sale.payment_method = payment_method
         await self.session.flush()
 
+        # Mark delivery as delivered
+        delivery = await self._get_delivery_by_sale(sale_id)
+        if delivery and delivery.status != DeliveryStatus.DELIVERED:
+            delivery.status = DeliveryStatus.DELIVERED
+            await self.session.flush()
+
         # If credit sale, mark receivable as paid
         if sale.payment_type == PaymentType.CREDIT:
             receivable = await self.receivable_repo.get_by_sale(sale_id)
@@ -221,6 +229,11 @@ class SaleService:
                 await self.session.flush()
 
         return sale
+
+    async def _get_delivery_by_sale(self, sale_id: uuid.UUID) -> Delivery | None:
+        stmt = select(Delivery).where(Delivery.sale_id == sale_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def delete_sale(self, sale_id: uuid.UUID, admin_password: str) -> None:
         # Verify admin password

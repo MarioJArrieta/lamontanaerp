@@ -1,7 +1,7 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -34,7 +34,14 @@ class SaleRepository(BaseRepository[Sale]):
             select(Sale)
             .options(selectinload(Sale.items), selectinload(Sale.client))
             .where(Sale.date >= from_date, Sale.date <= to_date)
-            .order_by(Sale.date.desc(), Sale.created_at.desc())
+            .order_by(
+                case(
+                    (Sale.status == SaleStatus.PENDING, 0),
+                    else_=1,
+                ),
+                Sale.date.desc(),
+                Sale.created_at.desc(),
+            )
         )
         if status:
             stmt = stmt.where(Sale.status == status)

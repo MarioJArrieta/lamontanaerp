@@ -23,6 +23,11 @@ class DeliveryService:
     ) -> list[Delivery]:
         return await self.delivery_repo.get_by_employee_date(employee_id, target_date)
 
+    async def get_by_employee_date_range(
+        self, employee_id: uuid.UUID, from_date: date, to_date: date
+    ) -> list[Delivery]:
+        return await self.delivery_repo.get_by_employee_date_range(employee_id, from_date, to_date)
+
     async def create_delivery(
         self,
         delivery_date: date,

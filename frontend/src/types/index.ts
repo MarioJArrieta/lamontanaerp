@@ -4,6 +4,7 @@ export interface User {
   full_name: string;
   role: 'admin' | 'secretary' | 'delivery';
   is_active: boolean;
+  employee_id: string | null;
   created_at: string;
 }
 
@@ -91,6 +92,8 @@ export interface Production {
   pacas_produced: number;
   botellones_produced: number;
   waste_pacas: number;
+  is_paid: boolean;
+  payment_amount: string | null;
   notes: string | null;
   created_at: string;
 }

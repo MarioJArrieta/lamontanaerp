@@ -50,6 +50,7 @@ class UserResponse(BaseModel):
     full_name: str
     role: UserRole
     is_active: bool
+    employee_id: uuid.UUID | None = None
     created_at: datetime
 
 
@@ -210,6 +211,15 @@ class ProductionCreate(BaseModel):
     notes: str | None = None
 
 
+class ProductionUpdate(BaseModel):
+    date: Optional[date] = None
+    employee_id: uuid.UUID | None = None
+    pacas_produced: int | None = None
+    botellones_produced: int | None = None
+    waste_pacas: int | None = None
+    notes: str | None = None
+
+
 class ProductionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
@@ -219,6 +229,8 @@ class ProductionResponse(BaseModel):
     pacas_produced: int
     botellones_produced: int
     waste_pacas: int
+    is_paid: bool
+    payment_amount: Decimal | None
     notes: str | None
     created_at: datetime
 

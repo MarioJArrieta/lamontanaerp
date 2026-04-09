@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { toast } from 'sonner';
-import { Truck, CheckCircle2, Clock, MapPin, CircleDollarSign, Navigation } from 'lucide-react';
+import { Truck, CheckCircle2, Clock, MapPin, CircleDollarSign, Navigation, Package } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import LocationMap from '@/components/shared/LocationMap';
 import { SubmitButton } from '@/components/ui/submit-button';
 import api from '@/lib/api';
 import { sv } from '@/lib/helpers';
+import { getUser } from '@/lib/auth';
 import type { Delivery, Employee, Sale, Client } from '@/types';
 
 const statusLabel: Record<string, string> = { pending: 'Pendiente', in_route: 'En ruta', delivered: 'Entregado' };
@@ -32,6 +33,9 @@ export default function Deliveries() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const currentUser = getUser();
+  const isDeliveryUser = currentUser?.role === 'delivery';
 
   const today = new Date().toISOString().split('T')[0];
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
@@ -120,9 +124,12 @@ export default function Deliveries() {
   const clientMap = new Map(clients.map(c => [c.id, c]));
   const deliveryEmployees = employees.filter(e => e.role === 'delivery' && e.is_active);
 
-  const filtered = filterEmployee === 'all'
+  const effectiveFilter = isDeliveryUser && currentUser?.employee_id
+    ? currentUser.employee_id
+    : filterEmployee;
+  const filtered = effectiveFilter === 'all'
     ? deliveries
-    : deliveries.filter(d => d.delivery_employee_id === filterEmployee);
+    : deliveries.filter(d => d.delivery_employee_id === effectiveFilter);
 
   const [page, setPage] = useState(1);
   const pg = paginate(filtered, page);
@@ -138,182 +145,297 @@ export default function Deliveries() {
   const deliveredMoney = sumMoney(deliveredDels);
   const totalMoney = sumMoney(filtered);
 
+  // Mobile card for a single delivery
+  const DeliveryCard = ({ d }: { d: Delivery }) => {
+    const sale = saleMap.get(d.sale_id);
+    const client = sale ? clientMap.get(sale.client_id) : undefined;
+    const hasLocation = client && client.latitude && client.longitude;
+    const isDelivered = d.status === 'delivered';
+
+    return (
+      <Card className={isDelivered ? 'opacity-60' : ''}>
+        <CardContent className="p-4 space-y-3">
+          {/* Header: client + status */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="font-semibold text-base truncate">{client?.name || 'Sin cliente'}</p>
+              <p className="text-xs text-muted-foreground">{d.date}</p>
+              {client?.address && <p className="text-xs text-muted-foreground truncate">{client.address}</p>}
+            </div>
+            <Badge variant={statusVariant(d.status)} className="shrink-0">{statusLabel[d.status]}</Badge>
+          </div>
+
+          {/* Details row */}
+          <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-1">
+              <Package className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="font-semibold">{d.pacas_delivered}</span>
+              <span className="text-muted-foreground text-xs">pacas</span>
+            </div>
+            {d.botellones_delivered > 0 && (
+              <div className="flex items-center gap-1">
+                <span className="font-semibold">{d.botellones_delivered}</span>
+                <span className="text-muted-foreground text-xs">bot.</span>
+              </div>
+            )}
+            {sale && (
+              <div className="ml-auto font-bold text-sm">
+                {formatMoney(sale.total)}
+              </div>
+            )}
+          </div>
+
+          {/* Payment status */}
+          {sale && (
+            <div className="flex items-center gap-2">
+              {sale.status === 'paid' ? (
+                <Badge variant="default" className="text-xs">{sale.payment_method ? methodLabel[sale.payment_method] || sale.payment_method : 'Pagada'}</Badge>
+              ) : (
+                <Badge variant="outline" className="text-xs">Pendiente cobro</Badge>
+              )}
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex gap-2 pt-1">
+            {hasLocation && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 h-10"
+                onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${client!.latitude},${client!.longitude}`, '_blank')}
+              >
+                <Navigation className="w-4 h-4 mr-1" />Ir
+              </Button>
+            )}
+            {d.status === 'pending' && (
+              <>
+                <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => handleToggleInRoute(d)}>
+                  <Truck className="w-4 h-4 mr-1" />En ruta
+                </Button>
+                <Button size="sm" variant="default" className="flex-1 h-10" onClick={() => handleMarkDelivered(d.id)}>
+                  <CheckCircle2 className="w-4 h-4 mr-1" />Entregado
+                </Button>
+              </>
+            )}
+            {d.status === 'in_route' && (
+              <Button size="sm" variant="default" className="flex-1 h-10" onClick={() => handleMarkDelivered(d.id)}>
+                <CheckCircle2 className="w-4 h-4 mr-1" />Entregado
+              </Button>
+            )}
+            {sale && sale.status !== 'paid' && (
+              <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openPayDialog(sale.id)}>
+                <CircleDollarSign className="w-4 h-4 mr-1" />Cobrar
+              </Button>
+            )}
+            {isDelivered && (
+              <span className="flex-1 flex items-center justify-center text-sm text-green-600 font-medium gap-1">
+                <CheckCircle2 className="w-4 h-4" /> Listo
+              </span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <div>
-      <PageHeader title="Repartos" description="Control de entregas por repartidor" />
+      <PageHeader title="Repartos" description={isDeliveryUser ? `Hola, ${currentUser?.full_name}` : 'Control de entregas por repartidor'} />
 
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        <div className="flex items-center gap-2">
+      {/* Filters - stacked on mobile */}
+      <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3 mb-4 md:mb-6">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <Label className="text-sm whitespace-nowrap">Desde</Label>
-          <Input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} className="w-auto" />
+          <Input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} className="flex-1 sm:w-auto" />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <Label className="text-sm whitespace-nowrap">Hasta</Label>
-          <Input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} className="w-auto" />
+          <Input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} className="flex-1 sm:w-auto" />
         </div>
-        <div className="flex items-center gap-2">
-          <Label className="text-sm whitespace-nowrap">Repartidor</Label>
-          <Select value={filterEmployee} onValueChange={v => setFilterEmployee(sv(v))}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue>{(v: string) => v === 'all' ? 'Todos' : empMap.get(v)?.name || 'Todos'}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              {deliveryEmployees.map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
+        {!isDeliveryUser && (
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Label className="text-sm whitespace-nowrap">Repartidor</Label>
+            <Select value={filterEmployee} onValueChange={v => setFilterEmployee(sv(v))}>
+              <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectValue>{(v: string) => v === 'all' ? 'Todos' : empMap.get(v)?.name || 'Todos'}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {deliveryEmployees.map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      {/* Summary cards - 2x2 grid on mobile */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-4 md:mb-6">
         <Card>
-          <CardContent className="p-3">
+          <CardContent className="p-2 md:p-3">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-yellow-100 flex items-center justify-center shrink-0">
-                <Clock className="w-4 h-4 text-yellow-600" />
+              <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-yellow-100 flex items-center justify-center shrink-0">
+                <Clock className="w-3.5 h-3.5 md:w-4 md:h-4 text-yellow-600" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">Pendientes</p>
-                <p className="text-sm font-bold truncate">{formatMoney(pendingMoney)}</p>
-                <p className="text-xs text-muted-foreground">{pendingDels.length} entregas</p>
+                <p className="text-[10px] md:text-xs text-muted-foreground">Pendientes</p>
+                <p className="text-xs md:text-sm font-bold truncate">{formatMoney(pendingMoney)}</p>
+                <p className="text-[10px] md:text-xs text-muted-foreground">{pendingDels.length} entregas</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-3">
+          <CardContent className="p-2 md:p-3">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
-                <Truck className="w-4 h-4 text-blue-600" />
+              <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                <Truck className="w-3.5 h-3.5 md:w-4 md:h-4 text-blue-600" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">En ruta</p>
-                <p className="text-sm font-bold truncate">{formatMoney(inRouteMoney)}</p>
-                <p className="text-xs text-muted-foreground">{inRouteDels.length} entregas</p>
+                <p className="text-[10px] md:text-xs text-muted-foreground">En ruta</p>
+                <p className="text-xs md:text-sm font-bold truncate">{formatMoney(inRouteMoney)}</p>
+                <p className="text-[10px] md:text-xs text-muted-foreground">{inRouteDels.length} entregas</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-3">
+          <CardContent className="p-2 md:p-3">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
-                <CheckCircle2 className="w-4 h-4 text-green-600" />
+              <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-green-600" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">Entregados</p>
-                <p className="text-sm font-bold truncate">{formatMoney(deliveredMoney)}</p>
-                <p className="text-xs text-muted-foreground">{deliveredDels.length} entregas</p>
+                <p className="text-[10px] md:text-xs text-muted-foreground">Entregados</p>
+                <p className="text-xs md:text-sm font-bold truncate">{formatMoney(deliveredMoney)}</p>
+                <p className="text-[10px] md:text-xs text-muted-foreground">{deliveredDels.length} entregas</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-3">
+          <CardContent className="p-2 md:p-3">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                <CircleDollarSign className="w-4 h-4 text-primary" />
+              <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <CircleDollarSign className="w-3.5 h-3.5 md:w-4 md:h-4 text-primary" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">Total</p>
-                <p className="text-sm font-bold truncate">{formatMoney(totalMoney)}</p>
-                <p className="text-xs text-muted-foreground">{filtered.length} entregas</p>
+                <p className="text-[10px] md:text-xs text-muted-foreground">Total</p>
+                <p className="text-xs md:text-sm font-bold truncate">{formatMoney(totalMoney)}</p>
+                <p className="text-[10px] md:text-xs text-muted-foreground">{filtered.length} entregas</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="p-8 text-center text-muted-foreground">Cargando...</div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Repartidor</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Ubicacion</TableHead>
-                  <TableHead>Pacas</TableHead>
-                  <TableHead>Botellones</TableHead>
-                  <TableHead>Total venta</TableHead>
-                  <TableHead>Pago</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Accion</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pg.data.length === 0 ? (
+      {/* Mobile: card list / Desktop: table */}
+      {loading ? (
+        <div className="p-8 text-center text-muted-foreground">Cargando...</div>
+      ) : (
+        <>
+          {/* Mobile cards - visible on small screens */}
+          <div className="md:hidden space-y-3">
+            {pg.data.length === 0 ? (
+              <div className="text-center py-12">
+                <Truck className="w-10 h-10 mx-auto mb-3 text-muted-foreground/50" />
+                <p className="text-muted-foreground">No hay repartos</p>
+              </div>
+            ) : pg.data.map(d => (
+              <DeliveryCard key={d.id} d={d} />
+            ))}
+            <Pagination page={pg.page} totalPages={pg.totalPages} totalItems={pg.totalItems} pageSize={pg.pageSize} onPageChange={setPage} />
+          </div>
+
+          {/* Desktop table - hidden on small screens */}
+          <Card className="hidden md:block">
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8">
-                      <Truck className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
-                      <p className="text-muted-foreground">No hay repartos</p>
-                    </TableCell>
+                    <TableHead>Fecha</TableHead>
+                    {!isDeliveryUser && <TableHead>Repartidor</TableHead>}
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Ubicacion</TableHead>
+                    <TableHead>Pacas</TableHead>
+                    <TableHead>Botellones</TableHead>
+                    <TableHead>Total venta</TableHead>
+                    <TableHead>Pago</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Accion</TableHead>
                   </TableRow>
-                ) : pg.data.map(d => {
-                  const sale = saleMap.get(d.sale_id);
-                  const client = sale ? clientMap.get(sale.client_id) : undefined;
-                  const hasLocation = client && client.latitude && client.longitude;
-                  return (
-                    <TableRow key={d.id} className={d.status === 'delivered' ? 'opacity-60' : ''}>
-                      <TableCell>{d.date}</TableCell>
-                      <TableCell className="font-medium">{empMap.get(d.delivery_employee_id)?.name || '-'}</TableCell>
-                      <TableCell>{client?.name || '-'}</TableCell>
-                      <TableCell>
-                        {hasLocation ? (
-                          <Button size="sm" variant="outline" onClick={() => openMapDialog(client!)}>
-                            <MapPin className="w-3.5 h-3.5 mr-1" />Ver mapa
-                          </Button>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">{client?.address || 'Sin ubicacion'}</span>
-                        )}
+                </TableHeader>
+                <TableBody>
+                  {pg.data.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={isDeliveryUser ? 9 : 10} className="text-center py-8">
+                        <Truck className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
+                        <p className="text-muted-foreground">No hay repartos</p>
                       </TableCell>
-                      <TableCell className="font-semibold">{d.pacas_delivered}</TableCell>
-                      <TableCell>{d.botellones_delivered}</TableCell>
-                      <TableCell>{sale ? formatMoney(sale.total) : '-'}</TableCell>
-                      <TableCell>
-                        {sale?.status === 'paid' ? (
-                          <Badge variant="default">{sale.payment_method ? methodLabel[sale.payment_method] || sale.payment_method : 'Pagada'}</Badge>
-                        ) : sale ? (
-                          <Button size="sm" variant="outline" onClick={() => openPayDialog(sale.id)}>
-                            <CircleDollarSign className="w-3.5 h-3.5 mr-1" />Cobrar
-                          </Button>
-                        ) : '-'}
-                      </TableCell>
-                      <TableCell><Badge variant={statusVariant(d.status)}>{statusLabel[d.status]}</Badge></TableCell>
-                      <TableCell>
-                        {d.status === 'pending' && (
-                          <div className="flex gap-2">
-                            <Button size="sm" variant="outline" onClick={() => handleToggleInRoute(d)}>
-                              <Truck className="w-3.5 h-3.5 mr-1" />En ruta
+                    </TableRow>
+                  ) : pg.data.map(d => {
+                    const sale = saleMap.get(d.sale_id);
+                    const client = sale ? clientMap.get(sale.client_id) : undefined;
+                    const hasLocation = client && client.latitude && client.longitude;
+                    return (
+                      <TableRow key={d.id} className={d.status === 'delivered' ? 'opacity-60' : ''}>
+                        <TableCell>{d.date}</TableCell>
+                        {!isDeliveryUser && <TableCell className="font-medium">{empMap.get(d.delivery_employee_id)?.name || '-'}</TableCell>}
+                        <TableCell>{client?.name || '-'}</TableCell>
+                        <TableCell>
+                          {hasLocation ? (
+                            <Button size="sm" variant="outline" onClick={() => openMapDialog(client!)}>
+                              <MapPin className="w-3.5 h-3.5 mr-1" />Ver mapa
                             </Button>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">{client?.address || 'Sin ubicacion'}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-semibold">{d.pacas_delivered}</TableCell>
+                        <TableCell>{d.botellones_delivered}</TableCell>
+                        <TableCell>{sale ? formatMoney(sale.total) : '-'}</TableCell>
+                        <TableCell>
+                          {sale?.status === 'paid' ? (
+                            <Badge variant="default">{sale.payment_method ? methodLabel[sale.payment_method] || sale.payment_method : 'Pagada'}</Badge>
+                          ) : sale ? (
+                            <Button size="sm" variant="outline" onClick={() => openPayDialog(sale.id)}>
+                              <CircleDollarSign className="w-3.5 h-3.5 mr-1" />Cobrar
+                            </Button>
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell><Badge variant={statusVariant(d.status)}>{statusLabel[d.status]}</Badge></TableCell>
+                        <TableCell>
+                          {d.status === 'pending' && (
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="outline" onClick={() => handleToggleInRoute(d)}>
+                                <Truck className="w-3.5 h-3.5 mr-1" />En ruta
+                              </Button>
+                              <Button size="sm" variant="default" onClick={() => handleMarkDelivered(d.id)}>
+                                <CheckCircle2 className="w-3.5 h-3.5 mr-1" />Entregado
+                              </Button>
+                            </div>
+                          )}
+                          {d.status === 'in_route' && (
                             <Button size="sm" variant="default" onClick={() => handleMarkDelivered(d.id)}>
                               <CheckCircle2 className="w-3.5 h-3.5 mr-1" />Entregado
                             </Button>
-                          </div>
-                        )}
-                        {d.status === 'in_route' && (
-                          <Button size="sm" variant="default" onClick={() => handleMarkDelivered(d.id)}>
-                            <CheckCircle2 className="w-3.5 h-3.5 mr-1" />Entregado
-                          </Button>
-                        )}
-                        {d.status === 'delivered' && (
-                          <span className="text-sm text-green-600 font-medium flex items-center gap-1">
-                            <CheckCircle2 className="w-4 h-4" /> Listo
-                          </span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-          <Pagination page={pg.page} totalPages={pg.totalPages} totalItems={pg.totalItems} pageSize={pg.pageSize} onPageChange={setPage} />
-        </CardContent>
-      </Card>
+                          )}
+                          {d.status === 'delivered' && (
+                            <span className="text-sm text-green-600 font-medium flex items-center gap-1">
+                              <CheckCircle2 className="w-4 h-4" /> Listo
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+              <Pagination page={pg.page} totalPages={pg.totalPages} totalItems={pg.totalItems} pageSize={pg.pageSize} onPageChange={setPage} />
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       {/* Map dialog */}
       <Dialog open={mapOpen} onOpenChange={setMapOpen}>
