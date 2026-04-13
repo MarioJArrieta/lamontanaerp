@@ -25,11 +25,23 @@ from app.infrastructure.database import engine
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    from sqlalchemy import text
+
+    # ALTER TYPE ... ADD VALUE cannot run inside a transaction block,
+    # so we use AUTOCOMMIT isolation level.
+    async with engine.connect() as conn:
+        await conn.execution_options(isolation_level="AUTOCOMMIT")
+        try:
+            await conn.execute(text(
+                "ALTER TYPE salestatus ADD VALUE IF NOT EXISTS 'PARTIAL'"
+            ))
+        except Exception:
+            pass  # value already exists or type doesn't exist yet
+
     # Create tables on startup (dev only; use Alembic in prod)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         # Add new columns if they don't exist (create_all won't alter existing tables)
-        from sqlalchemy import text
         for col, coldef in [
             ("is_paid", "BOOLEAN NOT NULL DEFAULT false"),
             ("payment_amount", "NUMERIC(12,2)"),
