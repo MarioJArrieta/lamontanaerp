@@ -1,7 +1,7 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, useMemo, type FormEvent } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { toast } from 'sonner';
-import { CheckCircle, DollarSign, AlertTriangle, Clock } from 'lucide-react';
+import { CheckCircle, DollarSign, AlertTriangle, Clock, Search } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import StatCard from '@/components/shared/StatCard';
@@ -79,8 +79,19 @@ export default function Receivables() {
   };
 
   const clientMap = new Map(clients.map(c => [c.id, c]));
+  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const pg = paginate(sales, page);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return sales;
+    const q = search.toLowerCase();
+    return sales.filter(s => {
+      const client = clientMap.get(s.client_id);
+      return client?.name.toLowerCase().includes(q);
+    });
+  }, [sales, search, clientMap]);
+
+  const pg = paginate(filtered, page);
   const cashSales = sales.filter(s => s.payment_type === 'cash');
   const creditSales = sales.filter(s => s.payment_type === 'credit');
   const totalPending = sales.reduce((s, r) => s + Number(r.total), 0);
@@ -89,7 +100,16 @@ export default function Receivables() {
     <div>
       <PageHeader title="Cuentas por Cobrar" description="Ventas pendientes de pago" />
 
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar cliente..."
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
+            className="pl-9 w-60"
+          />
+        </div>
         <div className="flex items-center gap-2">
           <Label className="text-sm whitespace-nowrap">Desde</Label>
           <Input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} className="w-auto" />
