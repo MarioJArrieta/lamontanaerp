@@ -37,6 +37,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await conn.execute(text(
                 f"ALTER TABLE productions ADD COLUMN IF NOT EXISTS {col} {coldef}"
             ))
+        # Add paid_amount to sales if not exists
+        await conn.execute(text(
+            "ALTER TABLE sales ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(14,2) NOT NULL DEFAULT 0"
+        ))
+        # Backfill paid_amount for already-paid sales
+        await conn.execute(text(
+            "UPDATE sales SET paid_amount = total WHERE status = 'PAID' AND paid_amount = 0"
+        ))
         # Add employee_id to users if not exists
         await conn.execute(text(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS employee_id UUID REFERENCES employees(id)"

@@ -29,6 +29,7 @@ class Sale(Base):
     total: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False, default=0)
     payment_type: Mapped[PaymentType] = mapped_column(nullable=False)
     payment_method: Mapped[Optional[PaymentMethod]] = mapped_column(nullable=True)
+    paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False, default=0)
     status: Mapped[SaleStatus] = mapped_column(nullable=False, default=SaleStatus.PENDING)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 

@@ -22,8 +22,8 @@ function formatMoney(val: string | number) {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(Number(val));
 }
 
-const statusLabel: Record<string, string> = { pending: 'Pendiente', paid: 'Pagada' };
-const statusVariant = (s: string) => s === 'paid' ? 'default' as const : 'secondary' as const;
+const statusLabel: Record<string, string> = { pending: 'Pendiente', partial: 'Parcial', paid: 'Pagada' };
+const statusVariant = (s: string) => s === 'paid' ? 'default' as const : s === 'partial' ? 'outline' as const : 'secondary' as const;
 const methodLabel: Record<string, string> = { cash: 'Efectivo', transfer: 'Transferencia', nequi: 'Nequi', daviplata: 'Daviplata' };
 
 export default function Sales() {
@@ -36,6 +36,8 @@ export default function Sales() {
   const [payOpen, setPayOpen] = useState(false);
   const [paySaleId, setPaySaleId] = useState<string | null>(null);
   const [payMethod, setPayMethod] = useState('');
+  const [payPartial, setPayPartial] = useState(false);
+  const [payAmount, setPayAmount] = useState('');
   const [company, setCompany] = useState<CompanySettings | null>(null);
   const [clientSearch, setClientSearch] = useState('');
   const [clientDropOpen, setClientDropOpen] = useState(false);
@@ -136,6 +138,8 @@ export default function Sales() {
   const openPayDialog = (saleId: string) => {
     setPaySaleId(saleId);
     setPayMethod('');
+    setPayPartial(false);
+    setPayAmount('');
     setPayOpen(true);
   };
 
@@ -144,8 +148,12 @@ export default function Sales() {
     if (!paySaleId || !payMethod) return;
     setSaving(true);
     try {
-      await api.post(`/sales/${paySaleId}/pay`, { payment_method: payMethod });
-      toast.success('Venta marcada como pagada');
+      const payload: { payment_method: string; amount?: number } = { payment_method: payMethod };
+      if (payPartial && payAmount) {
+        payload.amount = Number(payAmount);
+      }
+      await api.post(`/sales/${paySaleId}/pay`, payload);
+      toast.success(payPartial ? 'Abono registrado' : 'Venta marcada como pagada');
       setPayOpen(false);
       fetchData();
     } catch (err: unknown) {
@@ -425,6 +433,8 @@ export default function Sales() {
                   <TableHead>Cliente</TableHead>
                   <TableHead>Items</TableHead>
                   <TableHead>Total</TableHead>
+                  <TableHead>Abonado</TableHead>
+                  <TableHead>Saldo</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Repartidor</TableHead>
                   <TableHead>Estado</TableHead>
@@ -435,7 +445,7 @@ export default function Sales() {
               <TableBody>
                 {pg.data.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8">
+                    <TableCell colSpan={11} className="text-center py-8">
                       <ShoppingCart className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No hay ventas</p>
                     </TableCell>
@@ -451,6 +461,8 @@ export default function Sales() {
                       {(s.items || []).length > 2 && <span className="text-muted-foreground"> +{s.items.length - 2} más</span>}
                     </TableCell>
                     <TableCell className="font-semibold">{formatMoney(s.total)}</TableCell>
+                    <TableCell>{Number(s.paid_amount) > 0 ? formatMoney(s.paid_amount) : '-'}</TableCell>
+                    <TableCell className={Number(s.balance) > 0 ? 'text-destructive font-semibold' : ''}>{Number(s.balance) > 0 ? formatMoney(s.balance) : '-'}</TableCell>
                     <TableCell><Badge variant="outline">{paymentLabel[s.payment_type] || s.payment_type}</Badge></TableCell>
                     <TableCell>{s.delivery_employee_id ? (employees.find(e => e.id === s.delivery_employee_id)?.name || '-') : <span className="text-muted-foreground">Sin asignar</span>}</TableCell>
                     <TableCell><Badge variant={statusVariant(s.status)}>{statusLabel[s.status]}</Badge></TableCell>
@@ -463,7 +475,7 @@ export default function Sales() {
                         <Button size="sm" variant="outline" onClick={() => handleInvoice(s)}>
                           <FileText className="w-3.5 h-3.5 mr-1" />Factura
                         </Button>
-                        {s.status === 'pending' && (
+                        {s.status !== 'paid' && (
                           <Button size="sm" variant="default" onClick={() => openPayDialog(s.id)}>Pagar</Button>
                         )}
                         {s.date === today && (
@@ -485,21 +497,49 @@ export default function Sales() {
       <Dialog open={payOpen} onOpenChange={setPayOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Registrar pago</DialogTitle></DialogHeader>
-          <form onSubmit={handlePay} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Medio de pago</Label>
-              <Select value={payMethod || null} onValueChange={v => setPayMethod(sv(v))}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar">{(v: string) => methodLabel[v] || 'Seleccionar'}</SelectValue></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Efectivo</SelectItem>
-                  <SelectItem value="transfer">Transferencia</SelectItem>
-                  <SelectItem value="nequi">Nequi</SelectItem>
-                  <SelectItem value="daviplata">Daviplata</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <SubmitButton loading={saving} className="w-full" disabled={!payMethod}>Confirmar pago</SubmitButton>
-          </form>
+          {(() => {
+            const sale = sales.find(s => s.id === paySaleId);
+            const balance = sale ? Number(sale.balance) : 0;
+            return (
+              <form onSubmit={handlePay} className="space-y-4">
+                {sale && (
+                  <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-1">
+                    <div className="flex justify-between"><span>Total:</span><span className="font-semibold">{formatMoney(sale.total)}</span></div>
+                    {Number(sale.paid_amount) > 0 && <div className="flex justify-between"><span>Abonado:</span><span>{formatMoney(sale.paid_amount)}</span></div>}
+                    <div className="flex justify-between"><span>Saldo:</span><span className="font-bold text-destructive">{formatMoney(balance)}</span></div>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label>Tipo de pago</Label>
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" variant={!payPartial ? 'default' : 'outline'} className="flex-1" onClick={() => { setPayPartial(false); setPayAmount(''); }}>Pago total</Button>
+                    <Button type="button" size="sm" variant={payPartial ? 'default' : 'outline'} className="flex-1" onClick={() => setPayPartial(true)}>Abono parcial</Button>
+                  </div>
+                </div>
+                {payPartial && (
+                  <div className="space-y-2">
+                    <Label>Monto del abono</Label>
+                    <Input type="number" placeholder="0" value={payAmount} onChange={e => setPayAmount(e.target.value)} min={1} max={balance} required />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label>Medio de pago</Label>
+                  <Select value={payMethod || null} onValueChange={v => setPayMethod(sv(v))}>
+                    <SelectTrigger><SelectValue placeholder="Seleccionar">{(v: string) => methodLabel[v] || 'Seleccionar'}</SelectValue></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Efectivo</SelectItem>
+                      <SelectItem value="transfer">Transferencia</SelectItem>
+                      <SelectItem value="nequi">Nequi</SelectItem>
+                      <SelectItem value="daviplata">Daviplata</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <SubmitButton loading={saving} className="w-full" disabled={!payMethod || (payPartial && !payAmount)}>
+                  {payPartial ? `Abonar ${payAmount ? formatMoney(Number(payAmount)) : ''}` : `Pagar ${formatMoney(balance)}`}
+                </SubmitButton>
+              </form>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

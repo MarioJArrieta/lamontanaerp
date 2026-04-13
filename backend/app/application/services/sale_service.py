@@ -48,9 +48,9 @@ class SaleService:
         self.session = session
 
     async def get_by_date_range(
-        self, from_date: date, to_date: date, status: SaleStatus | None = None
+        self, from_date: date, to_date: date, statuses: list[SaleStatus] | None = None
     ) -> list[Sale]:
-        return await self.sale_repo.get_by_date_range(from_date, to_date, status)
+        return await self.sale_repo.get_by_date_range(from_date, to_date, statuses)
 
     async def get_by_id(self, sale_id: uuid.UUID) -> Sale | None:
         return await self.sale_repo.get_by_id_with_items(sale_id)
@@ -202,7 +202,8 @@ class SaleService:
         return sale
 
     async def mark_paid(
-        self, sale_id: uuid.UUID, payment_method: PaymentMethod
+        self, sale_id: uuid.UUID, payment_method: PaymentMethod,
+        amount: Decimal | None = None,
     ) -> Sale:
         sale = await self.sale_repo.get_by_id_with_items(sale_id)
         if not sale:
@@ -210,23 +211,38 @@ class SaleService:
         if sale.status == SaleStatus.PAID:
             raise ValueError("Sale is already paid")
 
-        sale.status = SaleStatus.PAID
+        balance = sale.total - sale.paid_amount
+        pay_amount = amount if amount is not None else balance
+
+        if pay_amount <= Decimal("0"):
+            raise ValueError("El monto debe ser mayor a 0")
+        if pay_amount > balance:
+            raise ValueError(f"El monto ({pay_amount}) supera el saldo pendiente ({balance})")
+
+        sale.paid_amount += pay_amount
         sale.payment_method = payment_method
+
+        if sale.paid_amount >= sale.total:
+            sale.status = SaleStatus.PAID
+        else:
+            sale.status = SaleStatus.PARTIAL
+
         await self.session.flush()
 
-        # Mark delivery as delivered
-        delivery = await self._get_delivery_by_sale(sale_id)
-        if delivery and delivery.status != DeliveryStatus.DELIVERED:
-            delivery.status = DeliveryStatus.DELIVERED
-            await self.session.flush()
-
-        # If credit sale, mark receivable as paid
-        if sale.payment_type == PaymentType.CREDIT:
-            receivable = await self.receivable_repo.get_by_sale(sale_id)
-            if receivable:
-                receivable.status = ReceivableStatus.PAID
-                receivable.paid_date = date.today()
+        if sale.status == SaleStatus.PAID:
+            # Mark delivery as delivered
+            delivery = await self._get_delivery_by_sale(sale_id)
+            if delivery and delivery.status != DeliveryStatus.DELIVERED:
+                delivery.status = DeliveryStatus.DELIVERED
                 await self.session.flush()
+
+            # If credit sale, mark receivable as paid
+            if sale.payment_type == PaymentType.CREDIT:
+                receivable = await self.receivable_repo.get_by_sale(sale_id)
+                if receivable:
+                    receivable.status = ReceivableStatus.PAID
+                    receivable.paid_date = date.today()
+                    await self.session.flush()
 
         return sale
 

@@ -28,7 +28,7 @@ class SaleRepository(BaseRepository[Sale]):
         return result.scalar_one_or_none()
 
     async def get_by_date_range(
-        self, from_date: date, to_date: date, status: SaleStatus | None = None
+        self, from_date: date, to_date: date, statuses: list[SaleStatus] | None = None
     ) -> list[Sale]:
         stmt = (
             select(Sale)
@@ -37,14 +37,15 @@ class SaleRepository(BaseRepository[Sale]):
             .order_by(
                 case(
                     (Sale.status == SaleStatus.PENDING, 0),
-                    else_=1,
+                    (Sale.status == SaleStatus.PARTIAL, 1),
+                    else_=2,
                 ),
                 Sale.date.desc(),
                 Sale.created_at.desc(),
             )
         )
-        if status:
-            stmt = stmt.where(Sale.status == status)
+        if statuses:
+            stmt = stmt.where(Sale.status.in_(statuses))
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 

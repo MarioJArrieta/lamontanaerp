@@ -137,9 +137,11 @@ export interface Sale {
   subtotal: string;
   tax: string;
   total: string;
+  paid_amount: string;
+  balance: string;
   payment_type: 'cash' | 'credit';
   payment_method: 'cash' | 'transfer' | 'nequi' | 'daviplata' | null;
-  status: 'pending' | 'paid';
+  status: 'pending' | 'partial' | 'paid';
   notes: string | null;
   items: SaleItem[];
   created_at: string;

@@ -44,6 +44,7 @@ class PaymentMethod(str, enum.Enum):
 
 class SaleStatus(str, enum.Enum):
     PENDING = "pending"
+    PARTIAL = "partial"
     PAID = "paid"
 
 

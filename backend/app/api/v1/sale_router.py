@@ -23,10 +23,13 @@ async def list_sales(
     _: Annotated[User, Depends(get_current_user)],
     from_date: date = Query(default_factory=lambda: date.today() - timedelta(days=30)),
     to_date: date = Query(default_factory=date.today),
-    sale_status: SaleStatus | None = Query(default=None, alias="status"),
+    sale_status: str | None = Query(default=None, alias="status"),
 ):
     service = SaleService(db)
-    return await service.get_by_date_range(from_date, to_date, sale_status)
+    statuses: list[SaleStatus] | None = None
+    if sale_status:
+        statuses = [SaleStatus(s.strip()) for s in sale_status.split(",")]
+    return await service.get_by_date_range(from_date, to_date, statuses)
 
 
 @router.get("/{sale_id}", response_model=SaleResponse)
@@ -100,7 +103,7 @@ async def mark_paid(
 ):
     service = SaleService(db)
     try:
-        return await service.mark_paid(sale_id, body.payment_method)
+        return await service.mark_paid(sale_id, body.payment_method, body.amount)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

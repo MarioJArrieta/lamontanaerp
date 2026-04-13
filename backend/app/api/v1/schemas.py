@@ -301,12 +301,17 @@ class SaleResponse(BaseModel):
     subtotal: Decimal
     tax: Decimal
     total: Decimal
+    paid_amount: Decimal
+    balance: Decimal = Decimal("0")
     payment_type: PaymentType
     payment_method: PaymentMethod | None
     status: SaleStatus
     notes: str | None
     items: list[SaleItemResponse] = []
     created_at: datetime
+
+    def model_post_init(self, __context: object) -> None:
+        self.balance = self.total - self.paid_amount
 
 
 class SaleUpdate(BaseModel):
@@ -321,6 +326,7 @@ class SaleAssignDelivery(BaseModel):
 
 class SaleMarkPaid(BaseModel):
     payment_method: PaymentMethod
+    amount: Decimal | None = None  # None = pago total del saldo restante
 
 
 class SaleDeleteConfirm(BaseModel):
