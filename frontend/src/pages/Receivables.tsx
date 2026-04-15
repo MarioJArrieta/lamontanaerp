@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, type FormEvent } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { toast } from 'sonner';
-import { CheckCircle, DollarSign, AlertTriangle, Clock, Search } from 'lucide-react';
+import { CheckCircle, DollarSign, AlertTriangle, Clock, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import StatCard from '@/components/shared/StatCard';
@@ -89,6 +89,23 @@ export default function Receivables() {
   const clientMap = new Map(clients.map(c => [c.id, c]));
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [sortCol, setSortCol] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const toggleSort = (col: string) => {
+    if (sortCol === col) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortCol(col);
+      setSortDir('asc');
+    }
+    setPage(1);
+  };
+
+  const SortIcon = ({ col }: { col: string }) => {
+    if (sortCol !== col) return <ArrowUpDown className="inline w-3 h-3 ml-1 opacity-40" />;
+    return sortDir === 'asc' ? <ArrowUp className="inline w-3 h-3 ml-1" /> : <ArrowDown className="inline w-3 h-3 ml-1" />;
+  };
 
   const filtered = useMemo(() => {
     if (!search.trim()) return sales;
@@ -99,7 +116,32 @@ export default function Receivables() {
     });
   }, [sales, search, clientMap]);
 
-  const pg = paginate(filtered, page);
+  const sorted = useMemo(() => {
+    if (!sortCol) return filtered;
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      let va: string | number = '';
+      let vb: string | number = '';
+      switch (sortCol) {
+        case 'date': va = a.date; vb = b.date; break;
+        case 'client': va = clientMap.get(a.client_id)?.name || ''; vb = clientMap.get(b.client_id)?.name || ''; break;
+        case 'total': va = Number(a.total); vb = Number(b.total); break;
+        case 'paid': va = Number(a.paid_amount); vb = Number(b.paid_amount); break;
+        case 'balance': va = Number(a.balance); vb = Number(b.balance); break;
+        case 'status': va = a.status; vb = b.status; break;
+        case 'type': va = a.payment_type; vb = b.payment_type; break;
+        case 'employee': {
+          va = employees.find(e => e.id === a.delivery_employee_id)?.name || '';
+          vb = employees.find(e => e.id === b.delivery_employee_id)?.name || '';
+          break;
+        }
+      }
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+      return String(va).localeCompare(String(vb)) * dir;
+    });
+  }, [filtered, sortCol, sortDir, clientMap, employees]);
+
+  const pg = paginate(sorted, page);
   const cashSales = filtered.filter(s => s.payment_type === 'cash');
   const creditSales = filtered.filter(s => s.payment_type === 'credit');
   const totalPending = filtered.reduce((s, r) => s + Number(r.balance), 0);
@@ -142,14 +184,14 @@ export default function Receivables() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Abonado</TableHead>
-                  <TableHead>Saldo</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Tipo pago</TableHead>
-                  <TableHead>Repartidor</TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('date')}>Fecha<SortIcon col="date" /></TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('client')}>Cliente<SortIcon col="client" /></TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('total')}>Total<SortIcon col="total" /></TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('paid')}>Abonado<SortIcon col="paid" /></TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('balance')}>Saldo<SortIcon col="balance" /></TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('status')}>Estado<SortIcon col="status" /></TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('type')}>Tipo pago<SortIcon col="type" /></TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('employee')}>Repartidor<SortIcon col="employee" /></TableHead>
                   <TableHead>Accion</TableHead>
                 </TableRow>
               </TableHeader>
