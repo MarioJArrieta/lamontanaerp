@@ -161,8 +161,11 @@ export default function Receivables() {
                       <p className="text-muted-foreground">No hay ventas pendientes</p>
                     </TableCell>
                   </TableRow>
-                ) : pg.data.map(s => (
-                  <TableRow key={s.id}>
+                ) : pg.data.map(s => {
+                  const daysOld = Math.floor((Date.now() - new Date(s.date + 'T00:00:00').getTime()) / 86400000);
+                  const overdue = daysOld > 7;
+                  return (
+                  <TableRow key={s.id} className={overdue ? 'bg-red-50' : ''}>
                     <TableCell>{s.date}</TableCell>
                     <TableCell className="font-medium">{clientMap.get(s.client_id)?.name || '-'}</TableCell>
                     <TableCell className="font-semibold">{formatMoney(s.total)}</TableCell>
@@ -175,7 +178,8 @@ export default function Receivables() {
                       <Button size="sm" variant="default" onClick={() => openPayDialog(s.id)}>Registrar pago</Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           )}
