@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { toast } from 'sonner';
-import { Warehouse, RefreshCw } from 'lucide-react';
+import { Warehouse, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -42,7 +42,38 @@ export default function Inventory() {
 
   const productMap = new Map(products.map(p => [p.id, p]));
   const [page, setPage] = useState(1);
-  const pg = paginate(movements, page);
+  const [sortCol, setSortCol] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const toggleSort = (col: string) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+    setPage(1);
+  };
+  const SortIcon = ({ col }: { col: string }) => {
+    if (sortCol !== col) return <ArrowUpDown className="inline w-3 h-3 ml-1 opacity-40" />;
+    return sortDir === 'asc' ? <ArrowUp className="inline w-3 h-3 ml-1" /> : <ArrowDown className="inline w-3 h-3 ml-1" />;
+  };
+
+  const sortedMovements = useMemo(() => {
+    if (!sortCol) return movements;
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...movements].sort((a, b) => {
+      let va: string | number = '';
+      let vb: string | number = '';
+      switch (sortCol) {
+        case 'product': va = productMap.get(a.product_id)?.name || ''; vb = productMap.get(b.product_id)?.name || ''; break;
+        case 'type': va = a.movement_type; vb = b.movement_type; break;
+        case 'quantity': va = a.quantity; vb = b.quantity; break;
+        case 'notes': va = a.notes || ''; vb = b.notes || ''; break;
+        case 'date': va = a.created_at; vb = b.created_at; break;
+      }
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+      return String(va).localeCompare(String(vb)) * dir;
+    });
+  }, [movements, sortCol, sortDir, productMap]);
+
+  const pg = paginate(sortedMovements, page);
 
   const movementTypeLabel: Record<string, string> = {
     production_in: 'Produccion',
@@ -99,11 +130,11 @@ export default function Inventory() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Producto</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Cantidad</TableHead>
-                <TableHead>Notas</TableHead>
-                <TableHead>Fecha</TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('product')}>Producto<SortIcon col="product" /></TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('type')}>Tipo<SortIcon col="type" /></TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('quantity')}>Cantidad<SortIcon col="quantity" /></TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('notes')}>Notas<SortIcon col="notes" /></TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('date')}>Fecha<SortIcon col="date" /></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

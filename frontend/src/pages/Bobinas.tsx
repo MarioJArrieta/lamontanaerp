@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, type FormEvent } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { toast } from 'sonner';
-import { Plus, Cylinder, Weight, Package, CircleDollarSign, CircleCheck, Search } from 'lucide-react';
+import { Plus, Cylinder, Weight, Package, CircleDollarSign, CircleCheck, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import StatCard from '@/components/shared/StatCard';
@@ -29,6 +29,18 @@ export default function Bobinas() {
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(1);
   const [search, setSearch] = usePersistedState('bobinas_search', '');
+  const [sortCol, setSortCol] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const toggleSort = (col: string) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+    setPage(1);
+  };
+  const SortIcon = ({ col }: { col: string }) => {
+    if (sortCol !== col) return <ArrowUpDown className="inline w-3 h-3 ml-1 opacity-40" />;
+    return sortDir === 'asc' ? <ArrowUp className="inline w-3 h-3 ml-1" /> : <ArrowDown className="inline w-3 h-3 ml-1" />;
+  };
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
   const [filterFrom, setFilterFrom] = usePersistedState('bobinas_from', monthAgo);
   const [filterTo, setFilterTo] = usePersistedState('bobinas_to', today);
@@ -126,7 +138,28 @@ export default function Bobinas() {
     });
   }, [bobinas, filterFrom, filterTo, search]);
 
-  const pg = paginate(filtered, page);
+  const sorted = useMemo(() => {
+    if (!sortCol) return filtered;
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      let va: string | number = '';
+      let vb: string | number = '';
+      switch (sortCol) {
+        case 'code': va = a.code || ''; vb = b.code || ''; break;
+        case 'date': va = a.purchase_date || ''; vb = b.purchase_date || ''; break;
+        case 'weight': va = Number(a.weight_kg); vb = Number(b.weight_kg); break;
+        case 'cost': va = Number(a.cost); vb = Number(b.cost); break;
+        case 'estimated': va = a.estimated_pacas; vb = b.estimated_pacas; break;
+        case 'remaining': va = a.remaining_pacas; vb = b.remaining_pacas; break;
+        case 'supplier': va = a.supplier || ''; vb = b.supplier || ''; break;
+        case 'status': va = a.is_exhausted ? 1 : 0; vb = b.is_exhausted ? 1 : 0; break;
+      }
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+      return String(va).localeCompare(String(vb)) * dir;
+    });
+  }, [filtered, sortCol, sortDir]);
+
+  const pg = paginate(sorted, page);
 
   return (
     <div>
@@ -228,14 +261,14 @@ export default function Bobinas() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Codigo</TableHead>
-                  <TableHead>Fecha compra</TableHead>
-                  <TableHead>Peso (kg)</TableHead>
-                  <TableHead>Costo</TableHead>
-                  <TableHead>Pacas estimadas</TableHead>
-                  <TableHead>Pacas restantes</TableHead>
-                  <TableHead>Proveedor</TableHead>
-                  <TableHead>Estado</TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('code')}>Codigo<SortIcon col="code" /></TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('date')}>Fecha compra<SortIcon col="date" /></TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('weight')}>Peso (kg)<SortIcon col="weight" /></TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('cost')}>Costo<SortIcon col="cost" /></TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('estimated')}>Pacas estimadas<SortIcon col="estimated" /></TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('remaining')}>Pacas restantes<SortIcon col="remaining" /></TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('supplier')}>Proveedor<SortIcon col="supplier" /></TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('status')}>Estado<SortIcon col="status" /></TableHead>
                   <TableHead>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
