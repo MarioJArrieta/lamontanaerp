@@ -100,9 +100,9 @@ export default function Receivables() {
   }, [sales, search, clientMap]);
 
   const pg = paginate(filtered, page);
-  const cashSales = sales.filter(s => s.payment_type === 'cash');
-  const creditSales = sales.filter(s => s.payment_type === 'credit');
-  const totalPending = sales.reduce((s, r) => s + Number(r.balance), 0);
+  const cashSales = filtered.filter(s => s.payment_type === 'cash');
+  const creditSales = filtered.filter(s => s.payment_type === 'credit');
+  const totalPending = filtered.reduce((s, r) => s + Number(r.balance), 0);
 
   return (
     <div>
