@@ -235,3 +235,27 @@ export interface FinanceKPIs {
   balance: number;
   expense_by_category: Record<string, number>;
 }
+
+export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired';
+
+export interface QuoteItem {
+  id: string;
+  product_id: string;
+  quantity: number;
+  unit_price: string;
+  subtotal: string;
+}
+
+export interface Quote {
+  id: string;
+  date: string;
+  client_id: string;
+  valid_until: string;
+  subtotal: string;
+  tax: string;
+  total: string;
+  status: QuoteStatus;
+  notes: string | null;
+  items: QuoteItem[];
+  created_at: string;
+}

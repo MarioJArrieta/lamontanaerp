@@ -19,6 +19,7 @@ import {
   HandCoins,
   BarChart3,
   ChevronDown,
+  FileSignature,
 } from 'lucide-react';
 import { clearAuth, getUser } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -57,6 +58,7 @@ const navSections: NavSection[] = [
     collapsible: true,
     items: [
       { to: '/clients', icon: UserCircle, label: 'Clientes', roles: ['admin', 'secretary'] },
+      { to: '/quotes', icon: FileSignature, label: 'Cotizaciones', roles: ['admin', 'secretary'] },
       { to: '/sales', icon: ShoppingCart, label: 'Ventas', roles: ['admin', 'secretary'] },
       { to: '/receivables', icon: CreditCard, label: 'Cuentas x Cobrar', roles: ['admin', 'secretary'] },
       { to: '/deliveries', icon: Truck, label: 'Repartos', roles: ['admin', 'secretary', 'delivery'] },

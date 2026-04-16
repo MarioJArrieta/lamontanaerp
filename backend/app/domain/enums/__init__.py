@@ -16,6 +16,7 @@ from app.domain.enums.enums import (
     ReceivableStatus,
     UserRole,
     LoyaltyTransactionType,
+    QuoteStatus,
 )
 
 __all__ = [
@@ -36,4 +37,5 @@ __all__ = [
     "ReceivableStatus",
     "UserRole",
     "LoyaltyTransactionType",
+    "QuoteStatus",
 ]

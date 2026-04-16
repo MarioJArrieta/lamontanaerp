@@ -18,6 +18,7 @@ from app.domain.enums import (
     PayPeriod,
     PayrollStatus,
     ProductType,
+    QuoteStatus,
     ReceivableStatus,
     SaleStatus,
     UserRole,
@@ -523,3 +524,55 @@ class FinanceKPIsResponse(BaseModel):
     total_income: float
     balance: float
     expense_by_category: dict[str, float]
+
+
+# ---- Quote ----
+class QuoteItemCreate(BaseModel):
+    product_id: uuid.UUID
+    quantity: int
+    unit_price: Decimal | None = None  # Override client/base price
+
+
+class QuoteItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    product_id: uuid.UUID
+    quantity: int
+    unit_price: Decimal
+    subtotal: Decimal
+
+
+class QuoteCreate(BaseModel):
+    date: date
+    client_id: uuid.UUID
+    items: list[QuoteItemCreate]
+    valid_until: Optional[date] = None
+    status: QuoteStatus = QuoteStatus.DRAFT
+    notes: str | None = None
+
+
+class QuoteUpdate(BaseModel):
+    date: Optional[date] = None
+    valid_until: Optional[date] = None
+    status: Optional[QuoteStatus] = None
+    notes: str | None = None
+    items: Optional[list[QuoteItemCreate]] = None
+
+
+class QuoteStatusUpdate(BaseModel):
+    status: QuoteStatus
+
+
+class QuoteResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    date: date
+    client_id: uuid.UUID
+    valid_until: date
+    subtotal: Decimal
+    tax: Decimal
+    total: Decimal
+    status: QuoteStatus
+    notes: str | None
+    items: list[QuoteItemResponse] = []
+    created_at: datetime

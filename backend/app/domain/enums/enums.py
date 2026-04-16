@@ -105,3 +105,11 @@ class LoyaltyTransactionType(str, enum.Enum):
     EARN = "earn"
     REDEEM = "redeem"
     REVERSAL = "reversal"
+
+
+class QuoteStatus(str, enum.Enum):
+    DRAFT = "draft"
+    SENT = "sent"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    EXPIRED = "expired"
