@@ -66,6 +66,8 @@ export default function Clients() {
       if (editId) {
         await api.put(`/clients/${editId}`, {
           name: form.name,
+          client_type: form.client_type,
+          cedula_nit: form.cedula_nit,
           address: form.address || null,
           delivery_zone: form.delivery_zone || null,
           phone: form.phone || null,

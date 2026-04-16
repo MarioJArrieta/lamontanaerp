@@ -77,7 +77,13 @@ async def update_client(
     try:
         client = await service.update(client_id, body.model_dump(exclude_unset=True))
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        msg = str(e)
+        code = (
+            status.HTTP_404_NOT_FOUND
+            if msg == "Client not found"
+            else status.HTTP_409_CONFLICT
+        )
+        raise HTTPException(status_code=code, detail=msg)
     return client
 
 

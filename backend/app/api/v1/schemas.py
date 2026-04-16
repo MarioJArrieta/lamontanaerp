@@ -126,6 +126,8 @@ class ClientCreate(BaseModel):
 
 class ClientUpdate(BaseModel):
     name: str | None = None
+    client_type: ClientType | None = None
+    cedula_nit: str | None = None
     address: str | None = None
     delivery_zone: str | None = None
     phone: str | None = None

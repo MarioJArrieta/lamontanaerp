@@ -48,6 +48,15 @@ class ClientService:
         client = await self.repo.get_by_id_with_prices(client_id)
         if not client:
             raise ValueError("Client not found")
+
+        new_cedula_nit = updates.get("cedula_nit")
+        if new_cedula_nit and new_cedula_nit != client.cedula_nit:
+            existing = await self.repo.get_by_cedula_nit(new_cedula_nit)
+            if existing and existing.id != client_id:
+                raise ValueError(
+                    f"Client with cedula/NIT '{new_cedula_nit}' already exists"
+                )
+
         return await self.repo.update(client, updates)
 
     async def set_price(
