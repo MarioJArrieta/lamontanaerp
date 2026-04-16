@@ -513,7 +513,7 @@ export default function Quotes() {
       </Dialog>
 
       <Dialog open={!!detailQuote} onOpenChange={() => setDetailQuote(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Detalle de cotizacion</DialogTitle></DialogHeader>
           {detailQuote && (
             <div className="space-y-3">
@@ -523,26 +523,28 @@ export default function Quotes() {
               <p className="text-xs text-muted-foreground">
                 Valida hasta: {detailQuote.valid_until} — <Badge variant={statusVariant(detailQuote.status)}>{statusLabel[detailQuote.status]}</Badge>
               </p>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Producto</TableHead>
-                    <TableHead className="text-right">Cant.</TableHead>
-                    <TableHead className="text-right">Precio</TableHead>
-                    <TableHead className="text-right">Subtotal</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(detailQuote.items || []).map((item, i) => (
-                    <TableRow key={i}>
-                      <TableCell>{productMap.get(item.product_id)?.name || 'Producto'}</TableCell>
-                      <TableCell className="text-right">{item.quantity}</TableCell>
-                      <TableCell className="text-right">{formatMoney(item.unit_price)}</TableCell>
-                      <TableCell className="text-right font-medium">{formatMoney(item.subtotal)}</TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Producto</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Cant.</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Precio</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Subtotal</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {(detailQuote.items || []).map((item, i) => (
+                      <TableRow key={i}>
+                        <TableCell>{productMap.get(item.product_id)?.name || 'Producto'}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap">{item.quantity}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap">{formatMoney(item.unit_price)}</TableCell>
+                        <TableCell className="text-right font-medium whitespace-nowrap">{formatMoney(item.subtotal)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
               <div className="flex justify-between items-center pt-2 border-t">
                 <span className="font-medium">Total</span>
                 <span className="text-lg font-bold">{formatMoney(detailQuote.total)}</span>
