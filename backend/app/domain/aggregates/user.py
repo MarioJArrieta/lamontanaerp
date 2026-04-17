@@ -16,6 +16,9 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(100), nullable=False)
     role: Mapped[UserRole] = mapped_column(nullable=False)
+    phone: Mapped[Optional[str]] = mapped_column(
+        String(20), unique=True, nullable=True
+    )
     is_active: Mapped[bool] = mapped_column(default=True)
     employee_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("employees.id"), nullable=True

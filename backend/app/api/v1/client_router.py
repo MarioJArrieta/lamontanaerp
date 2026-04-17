@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.schemas import (
     ClientCreate,
+    ClientCreateResponse,
+    ClientPasswordResponse,
     ClientPriceResponse,
     ClientPriceSet,
     ClientResponse,
@@ -44,7 +46,7 @@ async def get_client(
     return client
 
 
-@router.post("", response_model=ClientResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ClientCreateResponse, status_code=status.HTTP_201_CREATED)
 async def create_client(
     body: ClientCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -52,7 +54,7 @@ async def create_client(
 ):
     service = ClientService(db)
     try:
-        client = await service.create(
+        client, plain_password = await service.create(
             name=body.name,
             client_type=body.client_type,
             cedula_nit=body.cedula_nit,
@@ -63,7 +65,9 @@ async def create_client(
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
-    return client
+    return ClientCreateResponse.model_validate(
+        client, from_attributes=True
+    ).model_copy(update={"generated_password": plain_password})
 
 
 @router.put("/{client_id}", response_model=ClientResponse)
@@ -126,3 +130,27 @@ async def delete_client_price(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Price not found"
         )
+
+
+@router.post(
+    "/{client_id}/password/reset",
+    response_model=ClientPasswordResponse,
+)
+async def reset_client_password(
+    client_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[User, Depends(require_role(UserRole.ADMIN))],
+):
+    service = ClientService(db)
+    try:
+        client, plain_password = await service.reset_password(client_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(e)
+        )
+    return ClientPasswordResponse(
+        client_id=client.id,
+        client_name=client.name,
+        phone=client.phone,
+        generated_password=plain_password,
+    )

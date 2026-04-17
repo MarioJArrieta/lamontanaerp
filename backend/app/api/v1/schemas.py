@@ -3,7 +3,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from app.domain.enums import (
     ClientType,
@@ -27,13 +27,23 @@ from app.domain.enums import (
 
 # ---- Auth ----
 class LoginRequest(BaseModel):
-    username: str
+    username: str | None = None
+    phone: str | None = None
     password: str
+
+    @model_validator(mode="after")
+    def require_username_or_phone(self) -> "LoginRequest":
+        if not self.username and not self.phone:
+            raise ValueError("Must provide username or phone")
+        return self
 
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    role: str | None = None
+    client_id: str | None = None
+    client_name: str | None = None
 
 
 # ---- User ----
@@ -42,6 +52,7 @@ class UserCreate(BaseModel):
     password: str
     full_name: str
     role: UserRole
+    phone: str | None = None
 
 
 class UserResponse(BaseModel):
@@ -50,6 +61,7 @@ class UserResponse(BaseModel):
     username: str
     full_name: str
     role: UserRole
+    phone: str | None = None
     is_active: bool
     employee_id: uuid.UUID | None = None
     created_at: datetime
@@ -135,6 +147,31 @@ class ClientUpdate(BaseModel):
     latitude: Decimal | None = None
     longitude: Decimal | None = None
     is_active: bool | None = None
+
+
+class ClientCreateResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    name: str
+    client_type: ClientType
+    cedula_nit: str
+    address: str | None
+    delivery_zone: str | None
+    phone: str | None
+    email: str | None
+    latitude: Decimal | None
+    longitude: Decimal | None
+    loyalty_points: int = 0
+    is_active: bool
+    prices: list["ClientPriceResponse"] = []
+    generated_password: str | None = None
+
+
+class ClientPasswordResponse(BaseModel):
+    client_id: uuid.UUID
+    client_name: str
+    phone: str | None
+    generated_password: str
 
 
 class ClientPriceSet(BaseModel):

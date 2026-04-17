@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { Plus, UserCircle, Search, MapPin, Map, Navigation, Droplets, Tag, Trash2 } from 'lucide-react';
+import { Plus, UserCircle, Search, MapPin, Map, Navigation, Droplets, Tag, Trash2, KeyRound } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -75,14 +75,19 @@ export default function Clients() {
         });
         toast.success('Cliente actualizado');
       } else {
-        await api.post('/clients', {
+        const res = await api.post('/clients', {
           ...form,
           address: form.address || null,
           delivery_zone: form.delivery_zone || null,
           phone: form.phone || null,
           email: form.email || null,
         });
-        toast.success('Cliente creado');
+        const pwd = res.data?.generated_password;
+        if (pwd) {
+          toast.success(`Cliente creado. Password: ${pwd}`, { duration: 15000 });
+        } else {
+          toast.success('Cliente creado');
+        }
       }
       setOpen(false);
       setEditId(null);
@@ -126,6 +131,16 @@ export default function Clients() {
       toast.error('Error al guardar ubicacion');
     } finally {
       setSavingLocation(false);
+    }
+  };
+
+  const handleResetPassword = async (c: Client) => {
+    try {
+      const res = await api.post(`/clients/${c.id}/password/reset`);
+      const pwd = res.data?.generated_password;
+      toast.success(`Nueva password para ${c.name}: ${pwd}`, { duration: 15000 });
+    } catch {
+      toast.error('Error al resetear password');
     }
   };
 
@@ -351,6 +366,9 @@ export default function Clients() {
                           <MapPin className="w-3.5 h-3.5 mr-1" />Ubicacion
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => openEdit(c)}>Editar</Button>
+                        <Button size="sm" variant="ghost" onClick={() => handleResetPassword(c)} title="Resetear password">
+                          <KeyRound className="w-3.5 h-3.5" />
+                        </Button>
                         {c.is_active && <Button size="sm" variant="ghost" className="text-destructive" onClick={() => handleDelete(c.id)}>Eliminar</Button>}
                       </div>
                     </TableCell>

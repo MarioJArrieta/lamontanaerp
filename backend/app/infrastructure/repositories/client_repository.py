@@ -29,6 +29,11 @@ class ClientRepository(BaseRepository[Client]):
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_by_phone(self, phone: str) -> Client | None:
+        stmt = select(Client).where(Client.phone == phone)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_by_cedula_nit(self, cedula_nit: str) -> Client | None:
         stmt = select(Client).where(Client.cedula_nit == cedula_nit)
         result = await self.session.execute(stmt)

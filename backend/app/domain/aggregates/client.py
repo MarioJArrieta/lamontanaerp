@@ -23,6 +23,9 @@ class Client(Base):
     email: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     latitude: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 7), nullable=True)
     longitude: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 7), nullable=True)
+    hashed_password: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
     loyalty_points: Mapped[int] = mapped_column(default=0)
     is_active: Mapped[bool] = mapped_column(default=True)
 

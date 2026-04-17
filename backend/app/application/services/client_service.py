@@ -2,6 +2,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.security import generate_password, hash_password
 from app.domain.aggregates.client import Client
 from app.domain.aggregates.client_price import ClientPrice
 from app.domain.enums import ClientType
@@ -27,11 +28,12 @@ class ClientService:
         delivery_zone: str | None = None,
         phone: str | None = None,
         email: str | None = None,
-    ) -> Client:
+    ) -> tuple[Client, str]:
         existing = await self.repo.get_by_cedula_nit(cedula_nit)
         if existing:
             raise ValueError(f"Client with cedula/NIT '{cedula_nit}' already exists")
 
+        plain_password = generate_password()
         client = Client(
             name=name,
             client_type=client_type,
@@ -40,9 +42,20 @@ class ClientService:
             delivery_zone=delivery_zone,
             phone=phone,
             email=email,
+            hashed_password=hash_password(plain_password),
             prices=[],
         )
-        return await self.repo.create(client)
+        created = await self.repo.create(client)
+        return created, plain_password
+
+    async def reset_password(self, client_id: uuid.UUID) -> tuple[Client, str]:
+        client = await self.repo.get_by_id_with_prices(client_id)
+        if not client:
+            raise ValueError("Client not found")
+        plain_password = generate_password()
+        client.hashed_password = hash_password(plain_password)
+        await self.repo.update(client, {})
+        return client, plain_password
 
     async def update(self, client_id: uuid.UUID, updates: dict) -> Client:
         client = await self.repo.get_by_id_with_prices(client_id)

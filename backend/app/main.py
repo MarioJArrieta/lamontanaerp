@@ -58,6 +58,27 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await conn.execute(text(
             "UPDATE sales SET paid_amount = total WHERE status = 'PAID' AND paid_amount = 0"
         ))
+        # Add hashed_password to clients if not exists and backfill
+        await conn.execute(text(
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS hashed_password VARCHAR(255)"
+        ))
+        # Backfill: set a placeholder hash for clients without password
+        # Admin must use POST /clients/{id}/password/reset to generate real passwords
+        from app.auth.security import generate_password, hash_password as _hp
+        result = await conn.execute(text(
+            "SELECT id FROM clients WHERE hashed_password IS NULL"
+        ))
+        for row in result:
+            pwd = generate_password()
+            hashed = _hp(pwd)
+            await conn.execute(
+                text("UPDATE clients SET hashed_password = :hp WHERE id = :cid"),
+                {"hp": hashed, "cid": row[0]},
+            )
+        # Add phone to users if not exists
+        await conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20) UNIQUE"
+        ))
         # Add employee_id to users if not exists
         await conn.execute(text(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS employee_id UUID REFERENCES employees(id)"
