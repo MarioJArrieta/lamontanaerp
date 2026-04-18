@@ -18,6 +18,7 @@ from app.api.v1.delivery_router import router as delivery_router
 from app.api.v1.settings_router import router as settings_router
 from app.api.v1.finance_router import router as finance_router
 from app.api.v1.loyalty_router import router as loyalty_router
+from app.api.v1.me_router import router as me_router
 from app.api.v1.quote_router import router as quote_router
 from app.config import get_settings
 from app.domain.aggregates import Base
@@ -130,6 +131,7 @@ app.include_router(delivery_router, prefix="/api/v1")
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(finance_router, prefix="/api/v1")
 app.include_router(loyalty_router, prefix="/api/v1")
+app.include_router(me_router, prefix="/api/v1")
 app.include_router(quote_router, prefix="/api/v1")
 
 
