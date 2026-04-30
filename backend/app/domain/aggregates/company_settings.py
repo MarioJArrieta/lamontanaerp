@@ -14,3 +14,5 @@ class CompanySettings(Base):
     phone: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     address: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
     logo_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    dian_facturador_url: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    dian_facturador_api_key: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)

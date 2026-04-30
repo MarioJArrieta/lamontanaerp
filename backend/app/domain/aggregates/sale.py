@@ -3,7 +3,7 @@ from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Date, ForeignKey, Numeric, Text
+from sqlalchemy import Date, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -32,6 +32,14 @@ class Sale(Base):
     paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False, default=0)
     status: Mapped[SaleStatus] = mapped_column(nullable=False, default=SaleStatus.PENDING)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # DIAN electronic invoice (filled after POST to facturador-dian)
+    dian_document_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    dian_cufe: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    dian_status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    dian_status_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    dian_external_ref: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    dian_pdf_path: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
 
     client = relationship("Client")
     delivery_employee = relationship("Employee")

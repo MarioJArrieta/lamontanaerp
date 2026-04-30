@@ -19,12 +19,14 @@ async def login(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     service = AuthService(db)
-    token = await service.authenticate(body.username, body.password)
-    if not token:
+    result = await service.authenticate(
+        password=body.password, username=body.username, phone=body.phone
+    )
+    if not result:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
         )
-    return TokenResponse(access_token=token)
+    return TokenResponse(**result)
 
 
 @router.get("/me", response_model=UserResponse)
@@ -40,7 +42,9 @@ async def create_user(
 ):
     service = AuthService(db)
     try:
-        user = await service.create_user(body.username, body.password, body.full_name, body.role)
+        user = await service.create_user(
+            body.username, body.password, body.full_name, body.role, body.phone
+        )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     return user

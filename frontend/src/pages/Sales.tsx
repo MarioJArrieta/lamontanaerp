@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import { toast } from 'sonner';
-import { Plus, ShoppingCart, FileText, Package, Trash2, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, ShoppingCart, FileText, Package, Trash2, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Cloud, Lock, Download } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -47,6 +47,8 @@ export default function Sales() {
   const [deletePassword, setDeletePassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [detailSale, setDetailSale] = useState<Sale | null>(null);
+  const [invoiceSale, setInvoiceSale] = useState<Sale | null>(null);
+  const [generatingElectronic, setGeneratingElectronic] = useState(false);
   const [searchQuery, setSearchQuery] = usePersistedState('sales_search', '');
   const [page, setPage] = useState(1);
   const [sortCol, setSortCol] = useState<string | null>(null);
@@ -202,11 +204,61 @@ export default function Sales() {
   const clientMap = new Map(clients.map(c => [c.id, c]));
   const productMap = new Map(products.map(p => [p.id, p]));
 
-  const handleInvoice = async (sale: Sale) => {
+  const openInvoiceModal = (sale: Sale) => {
+    setInvoiceSale(sale);
+  };
+
+  const handleInternalInvoice = async () => {
+    if (!invoiceSale) return;
     try {
-      await generateInvoice(sale, clientMap.get(sale.client_id), productMap, company);
+      await generateInvoice(invoiceSale, clientMap.get(invoiceSale.client_id), productMap, company);
+      setInvoiceSale(null);
     } catch {
       toast.error('Error al generar factura');
+    }
+  };
+
+  const handleElectronicInvoice = async () => {
+    if (!invoiceSale) return;
+    setGeneratingElectronic(true);
+    try {
+      const res = await api.post(`/sales/${invoiceSale.id}/electronic-invoice`);
+      const docNumber = res.data?.document_number;
+      const status = res.data?.status;
+      const saleId = invoiceSale.id;
+      if (status === 'accepted') {
+        toast.success(`Factura electrónica ${docNumber || ''} aceptada por DIAN`, {
+          duration: 10000,
+          action: { label: 'Descargar PDF', onClick: () => downloadDianPdf(saleId, docNumber) },
+        });
+        fetchData();
+      } else {
+        toast.success(`Factura electrónica ${docNumber || ''} enviada`, { duration: 8000 });
+      }
+      setInvoiceSale(null);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error al generar factura electrónica';
+      toast.error(msg, { duration: 8000 });
+    } finally {
+      setGeneratingElectronic(false);
+    }
+  };
+
+  const downloadDianPdf = async (saleId: string, docNumber?: string | null) => {
+    try {
+      const res = await api.get(`/sales/${saleId}/electronic-invoice/pdf`, { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${docNumber || 'factura'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'No se pudo descargar el PDF';
+      toast.error(msg);
     }
   };
   const deliveryEmployees = employees.filter(e => e.role === 'delivery' && e.is_active);
@@ -364,15 +416,39 @@ export default function Sales() {
                 </div>
 
                 {(() => {
-                  const grandTotal = form.items.reduce((sum, item) => {
+                  let subtotal = 0;
+                  let tax = 0;
+                  for (const item of form.items) {
                     const qty = Number(item.quantity) || 0;
-                    const price = Number(item.unit_price) || (item.product_id ? Number(productMap.get(item.product_id)?.base_price || 0) : 0);
-                    return sum + qty * price;
-                  }, 0);
+                    const product = item.product_id ? productMap.get(item.product_id) : undefined;
+                    const displayPrice = Number(item.unit_price) || (product ? Number(product.base_price) : 0);
+                    const taxRate = Number(product?.tax_rate ?? 0);
+                    const taxIncluded = product?.tax_included === true;
+                    let netPrice = displayPrice;
+                    if (taxIncluded && taxRate > 0) {
+                      netPrice = displayPrice / (1 + taxRate / 100);
+                    }
+                    const lineSubtotal = qty * netPrice;
+                    subtotal += lineSubtotal;
+                    tax += lineSubtotal * taxRate / 100;
+                  }
+                  const grandTotal = subtotal + tax;
                   return grandTotal > 0 ? (
-                    <div className="flex justify-between items-center py-2 px-3 bg-muted/50 rounded-lg">
-                      <span className="text-sm font-medium">Total estimado</span>
-                      <span className="text-lg font-bold">{formatMoney(grandTotal)}</span>
+                    <div className="space-y-1 py-2 px-3 bg-muted/50 rounded-lg">
+                      <div className="flex justify-between items-center text-sm text-muted-foreground">
+                        <span>Subtotal</span>
+                        <span>{formatMoney(subtotal)}</span>
+                      </div>
+                      {tax > 0 && (
+                        <div className="flex justify-between items-center text-sm text-muted-foreground">
+                          <span>IVA</span>
+                          <span>{formatMoney(tax)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center pt-1 border-t">
+                        <span className="text-sm font-medium">Total estimado</span>
+                        <span className="text-lg font-bold">{formatMoney(grandTotal)}</span>
+                      </div>
                     </div>
                   ) : null;
                 })()}
@@ -507,12 +583,24 @@ export default function Sales() {
                     <TableCell>{s.payment_method ? methodLabel[s.payment_method] : '-'}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        <Button size="sm" variant="ghost" onClick={() => setDetailSale(s)} title="Ver productos">
+                        <Button size="sm" variant="ghost" onClick={() => setDetailSale(s)} title="Ver productos" className={`relative ${s.notes ? 'text-amber-600 hover:text-amber-700' : ''}`}>
                           <Eye className="w-3.5 h-3.5" />
+                          {s.notes && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 absolute top-1 right-1" />}
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleInvoice(s)}>
+                        <Button size="sm" variant="outline" onClick={() => openInvoiceModal(s)}>
                           <FileText className="w-3.5 h-3.5 mr-1" />Factura
                         </Button>
+                        {s.dian_status === 'accepted' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                            onClick={() => downloadDianPdf(s.id, s.dian_document_number)}
+                            title={`PDF DIAN ${s.dian_document_number || ''}`}
+                          >
+                            <Download className="w-3.5 h-3.5 mr-1" />PDF DIAN
+                          </Button>
+                        )}
                         {s.status !== 'paid' && (
                           <Button size="sm" variant="default" onClick={() => openPayDialog(s.id)}>Pagar</Button>
                         )}
@@ -595,6 +683,105 @@ export default function Sales() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!invoiceSale} onOpenChange={(v) => { if (!v) setInvoiceSale(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Generar factura</DialogTitle></DialogHeader>
+          {invoiceSale && (() => {
+            const cli = clientMap.get(invoiceSale.client_id);
+            const electronicAvailable = !!cli?.dian_id_type && cli?.electronic_invoicing_enabled === true;
+            const alreadyAccepted = invoiceSale.dian_status === 'accepted';
+            return (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Cliente: <span className="font-medium text-foreground">{cli?.name || '-'}</span> · {formatMoney(invoiceSale.total)}
+                </p>
+
+                {alreadyAccepted ? (
+                  <div className="rounded-lg border-2 border-emerald-300 bg-emerald-50 p-4 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-md bg-emerald-200 p-2">
+                        <Cloud className="w-5 h-5 text-emerald-700" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm text-emerald-900">
+                          Factura electrónica {invoiceSale.dian_document_number} aceptada por DIAN
+                        </p>
+                        <p className="text-xs text-emerald-800/80 mt-0.5">
+                          Esta venta ya tiene factura electrónica generada. No se puede regenerar.
+                        </p>
+                        {invoiceSale.dian_cufe && (
+                          <p className="text-[10px] text-emerald-800/60 font-mono break-all mt-1">
+                            CUFE: {invoiceSale.dian_cufe}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      className="w-full bg-emerald-600 hover:bg-emerald-700"
+                      onClick={() => downloadDianPdf(invoiceSale.id, invoiceSale.dian_document_number)}
+                    >
+                      <Download className="w-4 h-4 mr-2" />Descargar PDF DIAN
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleInternalInvoice}
+                      className="w-full text-left rounded-lg border bg-white p-4 hover:border-blue-500 hover:bg-blue-50/50 transition-colors flex items-start gap-3"
+                    >
+                      <div className="rounded-md bg-blue-100 p-2">
+                        <FileText className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm">Factura interna (PDF)</p>
+                        <p className="text-xs text-muted-foreground">Genera el PDF local para el cliente. No se envía a la DIAN.</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={electronicAvailable ? handleElectronicInvoice : undefined}
+                      disabled={!electronicAvailable || generatingElectronic}
+                      className={`w-full text-left rounded-lg border p-4 transition-colors flex items-start gap-3 ${
+                        electronicAvailable
+                          ? 'bg-white hover:border-emerald-500 hover:bg-emerald-50/50 cursor-pointer'
+                          : 'bg-muted/40 cursor-not-allowed opacity-60'
+                      }`}
+                      title={electronicAvailable ? '' : 'El cliente no tiene habilitada la factura electrónica. Edita el cliente para habilitarla.'}
+                    >
+                      <div className={`rounded-md p-2 ${electronicAvailable ? 'bg-emerald-100' : 'bg-gray-200'}`}>
+                        {electronicAvailable ? (
+                          <Cloud className="w-5 h-5 text-emerald-600" />
+                        ) : (
+                          <Lock className="w-5 h-5 text-gray-500" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm flex items-center gap-2">
+                          Factura electrónica DIAN
+                          {generatingElectronic && <span className="text-xs text-emerald-600">enviando...</span>}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {electronicAvailable
+                            ? 'Envía la factura a la DIAN y obtiene CUFE.'
+                            : 'Cliente no habilitado. Edita el cliente y activa "Habilitar para factura electrónica".'}
+                        </p>
+                      </div>
+                    </button>
+                  </>
+                )}
+
+                <Button variant="outline" className="w-full" onClick={() => setInvoiceSale(null)}>
+                  {alreadyAccepted ? 'Cerrar' : 'Cancelar'}
+                </Button>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!detailSale} onOpenChange={() => setDetailSale(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Detalle de venta</DialogTitle></DialogHeader>
@@ -627,6 +814,12 @@ export default function Sales() {
                 <span className="font-medium">Total</span>
                 <span className="text-lg font-bold">{formatMoney(detailSale.total)}</span>
               </div>
+              {detailSale.notes && (
+                <div className="p-3 bg-muted/50 rounded-lg">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Nota</p>
+                  <p className="text-sm">{detailSale.notes}</p>
+                </div>
+              )}
               <Button variant="outline" className="w-full" onClick={() => setDetailSale(null)}>Cerrar</Button>
             </div>
           )}

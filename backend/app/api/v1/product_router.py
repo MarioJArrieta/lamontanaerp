@@ -37,6 +37,9 @@ async def create_product(
         product_type=body.product_type,
         unit=body.unit,
         base_price=body.base_price,
+        tax_rate=body.tax_rate,
+        dian_tax_type=body.dian_tax_type,
+        tax_included=body.tax_included,
     )
     return product
 

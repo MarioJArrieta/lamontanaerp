@@ -126,7 +126,7 @@ async def seed():
         client_service = ClientService(session)
         existing_clients = await client_service.get_all()
         if not existing_clients:
-            client_tienda = await client_service.create(
+            client_tienda, _ = await client_service.create(
                 name="Tienda Don Jose",
                 client_type=ClientType.PERSON,
                 cedula_nit="900123456",
@@ -134,7 +134,7 @@ async def seed():
                 delivery_zone="Centro",
                 phone="3201234567",
             )
-            client_supermercado = await client_service.create(
+            client_supermercado, _ = await client_service.create(
                 name="Supermercado El Ahorro",
                 client_type=ClientType.COMPANY,
                 cedula_nit="900654321-1",
@@ -143,7 +143,7 @@ async def seed():
                 phone="3209876543",
                 email="elahorro@email.com",
             )
-            client_restaurante = await client_service.create(
+            client_restaurante, _ = await client_service.create(
                 name="Restaurante La Esquina",
                 client_type=ClientType.COMPANY,
                 cedula_nit="900111222-3",
@@ -151,7 +151,7 @@ async def seed():
                 delivery_zone="Sur",
                 phone="3215551234",
             )
-            client_miscelanea = await client_service.create(
+            client_miscelanea, _ = await client_service.create(
                 name="Miscelanea Doña Rosa",
                 client_type=ClientType.PERSON,
                 cedula_nit="51234567",
@@ -159,7 +159,7 @@ async def seed():
                 delivery_zone="Centro",
                 phone="3187654321",
             )
-            client_hotel = await client_service.create(
+            client_hotel, _ = await client_service.create(
                 name="Hotel Montaña Azul",
                 client_type=ClientType.COMPANY,
                 cedula_nit="900333444-5",

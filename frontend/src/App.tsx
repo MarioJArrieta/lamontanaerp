@@ -10,6 +10,7 @@ import Bobinas from '@/pages/Bobinas';
 import Production from '@/pages/Production';
 import Inventory from '@/pages/Inventory';
 import Sales from '@/pages/Sales';
+import Quotes from '@/pages/Quotes';
 import Receivables from '@/pages/Receivables';
 import Deliveries from '@/pages/Deliveries';
 
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="production" element={<Production />} />
           <Route path="inventory" element={<Inventory />} />
           <Route path="sales" element={<Sales />} />
+          <Route path="quotes" element={<Quotes />} />
           <Route path="receivables" element={<Receivables />} />
           <Route path="deliveries" element={<Deliveries />} />
 

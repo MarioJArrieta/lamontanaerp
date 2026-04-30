@@ -3,7 +3,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.domain.enums import (
     ClientType,
@@ -18,6 +18,7 @@ from app.domain.enums import (
     PayPeriod,
     PayrollStatus,
     ProductType,
+    QuoteStatus,
     ReceivableStatus,
     SaleStatus,
     UserRole,
@@ -26,13 +27,23 @@ from app.domain.enums import (
 
 # ---- Auth ----
 class LoginRequest(BaseModel):
-    username: str
+    username: str | None = None
+    phone: str | None = None
     password: str
+
+    @model_validator(mode="after")
+    def require_username_or_phone(self) -> "LoginRequest":
+        if not self.username and not self.phone:
+            raise ValueError("Must provide username or phone")
+        return self
 
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    role: str | None = None
+    client_id: str | None = None
+    client_name: str | None = None
 
 
 # ---- User ----
@@ -41,6 +52,7 @@ class UserCreate(BaseModel):
     password: str
     full_name: str
     role: UserRole
+    phone: str | None = None
 
 
 class UserResponse(BaseModel):
@@ -49,6 +61,7 @@ class UserResponse(BaseModel):
     username: str
     full_name: str
     role: UserRole
+    phone: str | None = None
     is_active: bool
     employee_id: uuid.UUID | None = None
     created_at: datetime
@@ -62,6 +75,7 @@ class EmployeeCreate(BaseModel):
     pay_period: PayPeriod
     fixed_salary: Decimal | None = None
     rate_per_paca: Decimal | None = None
+    rate_per_botellon: Decimal | None = None
     phone: str | None = None
 
 
@@ -70,6 +84,7 @@ class EmployeeUpdate(BaseModel):
     phone: str | None = None
     fixed_salary: Decimal | None = None
     rate_per_paca: Decimal | None = None
+    rate_per_botellon: Decimal | None = None
     is_active: bool | None = None
 
 
@@ -82,6 +97,7 @@ class EmployeeResponse(BaseModel):
     pay_period: PayPeriod
     fixed_salary: Decimal | None
     rate_per_paca: Decimal | None
+    rate_per_botellon: Decimal | None
     phone: str | None
     is_active: bool
     created_at: datetime
@@ -93,11 +109,17 @@ class ProductCreate(BaseModel):
     product_type: ProductType
     unit: str
     base_price: Decimal
+    tax_rate: Decimal = Decimal("0")
+    dian_tax_type: str = "ZZ"
+    tax_included: bool = False
 
 
 class ProductUpdate(BaseModel):
     name: str | None = None
     base_price: Decimal | None = None
+    tax_rate: Decimal | None = None
+    dian_tax_type: str | None = None
+    tax_included: bool | None = None
     is_active: bool | None = None
 
 
@@ -108,6 +130,9 @@ class ProductResponse(BaseModel):
     product_type: ProductType
     unit: str
     base_price: Decimal
+    tax_rate: Decimal
+    dian_tax_type: str
+    tax_included: bool
     is_active: bool
     created_at: datetime
 
@@ -117,14 +142,19 @@ class ClientCreate(BaseModel):
     name: str
     client_type: ClientType
     cedula_nit: str
+    dian_id_type: str
     address: str | None = None
     delivery_zone: str | None = None
     phone: str | None = None
     email: str | None = None
+    electronic_invoicing_enabled: bool = False
 
 
 class ClientUpdate(BaseModel):
     name: str | None = None
+    client_type: ClientType | None = None
+    cedula_nit: str | None = None
+    dian_id_type: str | None = None
     address: str | None = None
     delivery_zone: str | None = None
     phone: str | None = None
@@ -132,6 +162,34 @@ class ClientUpdate(BaseModel):
     latitude: Decimal | None = None
     longitude: Decimal | None = None
     is_active: bool | None = None
+    electronic_invoicing_enabled: bool | None = None
+
+
+class ClientCreateResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    name: str
+    client_type: ClientType
+    cedula_nit: str
+    dian_id_type: str | None = None
+    electronic_invoicing_enabled: bool = False
+    address: str | None
+    delivery_zone: str | None
+    phone: str | None
+    email: str | None
+    latitude: Decimal | None
+    longitude: Decimal | None
+    loyalty_points: int = 0
+    is_active: bool
+    prices: list["ClientPriceResponse"] = []
+    generated_password: str | None = None
+
+
+class ClientPasswordResponse(BaseModel):
+    client_id: uuid.UUID
+    client_name: str
+    phone: str | None
+    generated_password: str
 
 
 class ClientPriceSet(BaseModel):
@@ -152,6 +210,8 @@ class ClientResponse(BaseModel):
     name: str
     client_type: ClientType
     cedula_nit: str
+    dian_id_type: str | None = None
+    electronic_invoicing_enabled: bool = False
     address: str | None
     delivery_zone: str | None
     phone: str | None
@@ -309,9 +369,17 @@ class SaleResponse(BaseModel):
     notes: str | None
     items: list[SaleItemResponse] = []
     created_at: datetime
+    dian_document_number: str | None = None
+    dian_cufe: str | None = None
+    dian_status: str | None = None
+    dian_status_message: str | None = None
+    dian_external_ref: str | None = None
+    dian_pdf_path: str | None = Field(default=None, exclude=True)
+    dian_pdf_cached: bool = False
 
     def model_post_init(self, __context: object) -> None:
         self.balance = self.total - self.paid_amount
+        self.dian_pdf_cached = bool(self.dian_pdf_path)
 
 
 class SaleUpdate(BaseModel):
@@ -422,6 +490,8 @@ class CompanySettingsUpdate(BaseModel):
     phone: str | None = None
     address: str | None = None
     logo_url: str | None = None
+    dian_facturador_url: str | None = None
+    dian_facturador_api_key: str | None = None
 
 
 class CompanySettingsResponse(BaseModel):
@@ -432,6 +502,9 @@ class CompanySettingsResponse(BaseModel):
     phone: str | None
     address: str | None
     logo_url: str | None
+    dian_facturador_url: str | None = None
+    dian_facturador_api_key_masked: str | None = None
+    dian_facturador_configured: bool = False
 
 
 # ---- Expense ----
@@ -493,7 +566,7 @@ class OtherIncomeResponse(BaseModel):
     created_at: datetime
 
 
-# ---- Loyalty (Gotas) ----
+# ---- Loyalty (Puntos) ----
 class LoyaltyTransactionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
@@ -507,12 +580,13 @@ class LoyaltyTransactionResponse(BaseModel):
 
 class LoyaltyRedeemRequest(BaseModel):
     points: int
+    description: str | None = None
 
 
 class LoyaltyConfigResponse(BaseModel):
-    gotas_per_paca: int
-    gotas_per_botellon: int
-    gotas_to_redeem_paca: int
+    puntos_per_paca: int
+    puntos_per_botellon: int
+    puntos_to_redeem_paca: int
 
 
 # ---- Finance KPIs ----
@@ -523,3 +597,55 @@ class FinanceKPIsResponse(BaseModel):
     total_income: float
     balance: float
     expense_by_category: dict[str, float]
+
+
+# ---- Quote ----
+class QuoteItemCreate(BaseModel):
+    product_id: uuid.UUID
+    quantity: int
+    unit_price: Decimal | None = None  # Override client/base price
+
+
+class QuoteItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    product_id: uuid.UUID
+    quantity: int
+    unit_price: Decimal
+    subtotal: Decimal
+
+
+class QuoteCreate(BaseModel):
+    date: date
+    client_id: uuid.UUID
+    items: list[QuoteItemCreate]
+    valid_until: Optional[date] = None
+    status: QuoteStatus = QuoteStatus.DRAFT
+    notes: str | None = None
+
+
+class QuoteUpdate(BaseModel):
+    date: Optional[date] = None
+    valid_until: Optional[date] = None
+    status: Optional[QuoteStatus] = None
+    notes: str | None = None
+    items: Optional[list[QuoteItemCreate]] = None
+
+
+class QuoteStatusUpdate(BaseModel):
+    status: QuoteStatus
+
+
+class QuoteResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    date: date
+    client_id: uuid.UUID
+    valid_until: date
+    subtotal: Decimal
+    tax: Decimal
+    total: Decimal
+    status: QuoteStatus
+    notes: str | None
+    items: list[QuoteItemResponse] = []
+    created_at: datetime

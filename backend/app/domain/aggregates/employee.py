@@ -21,5 +21,8 @@ class Employee(Base):
     rate_per_paca: Mapped[Optional[Decimal]] = mapped_column(
         Numeric(10, 2), nullable=True
     )
+    rate_per_botellon: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(10, 2), nullable=True
+    )
     phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)

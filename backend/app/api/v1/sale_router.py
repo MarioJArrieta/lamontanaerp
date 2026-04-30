@@ -3,9 +3,14 @@ from datetime import date, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.schemas import SaleAssignDelivery, SaleCreate, SaleDeleteConfirm, SaleMarkPaid, SaleResponse, SaleUpdate
+from app.application.services.electronic_invoice_service import (
+    ElectronicInvoiceError,
+    ElectronicInvoiceService,
+)
 from app.application.services.sale_service import SaleService
 from app.auth.dependencies import get_current_user, require_role
 from app.domain.aggregates.user import User
@@ -30,6 +35,15 @@ async def list_sales(
     if sale_status:
         statuses = [SaleStatus(s.strip()) for s in sale_status.split(",")]
     return await service.get_by_date_range(from_date, to_date, statuses)
+
+
+@router.get("/collections/today", response_model=list[SaleResponse])
+async def get_today_collections(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[User, Depends(get_current_user)],
+):
+    service = SaleService(db)
+    return await service.get_collections_by_date(date.today())
 
 
 @router.get("/{sale_id}", response_model=SaleResponse)
@@ -120,3 +134,41 @@ async def delete_sale(
         await service.delete_sale(sale_id, body.admin_password)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/{sale_id}/electronic-invoice")
+async def send_electronic_invoice(
+    sale_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: AdminOrSecretary,
+):
+    service = ElectronicInvoiceService(db)
+    try:
+        sale = await service.send(sale_id)
+        await db.commit()
+    except ElectronicInvoiceError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return {
+        "document_number": sale.dian_document_number,
+        "cufe": sale.dian_cufe,
+        "status": sale.dian_status,
+        "status_message": sale.dian_status_message,
+    }
+
+
+@router.get("/{sale_id}/electronic-invoice/pdf")
+async def download_electronic_invoice_pdf(
+    sale_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: AdminOrSecretary,
+):
+    service = ElectronicInvoiceService(db)
+    try:
+        content, filename = await service.download_pdf(sale_id)
+    except ElectronicInvoiceError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

@@ -29,9 +29,9 @@ async def get_loyalty_config(
 ):
     settings = get_settings()
     return LoyaltyConfigResponse(
-        gotas_per_paca=settings.gotas_per_paca,
-        gotas_per_botellon=settings.gotas_per_botellon,
-        gotas_to_redeem_paca=settings.gotas_to_redeem_paca,
+        puntos_per_paca=settings.puntos_per_paca,
+        puntos_per_botellon=settings.puntos_per_botellon,
+        puntos_to_redeem_paca=settings.puntos_to_redeem_paca,
     )
 
 
@@ -60,7 +60,7 @@ async def redeem_points(
 ):
     service = LoyaltyService(db)
     try:
-        return await service.redeem(client_id, body.points)
+        return await service.redeem(client_id, body.points, body.description)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)

@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, type FormEvent } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { toast } from 'sonner';
-import { CheckCircle, DollarSign, AlertTriangle, Clock, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { CheckCircle, DollarSign, AlertTriangle, Clock, Search, ArrowUpDown, ArrowUp, ArrowDown, History } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import StatCard from '@/components/shared/StatCard';
@@ -42,6 +42,9 @@ export default function Receivables() {
   const [payPartial, setPayPartial] = useState(false);
   const [payAmount, setPayAmount] = useState('');
   const [saving, setSaving] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyData, setHistoryData] = useState<Sale[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const fetchData = () => {
     setLoading(true);
@@ -56,6 +59,19 @@ export default function Receivables() {
     }).finally(() => setLoading(false));
   };
   useEffect(fetchData, [filterFrom, filterTo]);
+
+  const openHistory = async () => {
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    try {
+      const res = await api.get('/sales/collections/today');
+      setHistoryData(res.data);
+    } catch {
+      toast.error('Error al cargar historial');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   const openPayDialog = (saleId: string) => {
     setPaySaleId(saleId);
@@ -148,7 +164,15 @@ export default function Receivables() {
 
   return (
     <div>
-      <PageHeader title="Cuentas por Cobrar" description="Ventas pendientes de pago" />
+      <PageHeader
+        title="Cuentas por Cobrar"
+        description="Ventas pendientes de pago"
+        action={
+          <Button variant="outline" onClick={openHistory}>
+            <History className="w-4 h-4 mr-2" />Cobros de hoy
+          </Button>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <div className="relative">
@@ -228,6 +252,65 @@ export default function Receivables() {
           <Pagination page={pg.page} totalPages={pg.totalPages} totalItems={pg.totalItems} pageSize={pg.pageSize} onPageChange={setPage} />
         </CardContent>
       </Card>
+
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="w-5 h-5 text-green-600" />
+              Cobros registrados hoy
+            </DialogTitle>
+          </DialogHeader>
+          {historyLoading ? (
+            <div className="py-8 text-center text-muted-foreground">Cargando...</div>
+          ) : historyData.length === 0 ? (
+            <div className="py-8 text-center">
+              <CheckCircle className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
+              <p className="text-muted-foreground">No hay cobros registrados hoy</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                <div>
+                  <p className="text-sm text-muted-foreground">Total cobrado hoy</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {formatMoney(historyData.reduce((sum, s) => sum + Number(s.paid_amount), 0))}
+                  </p>
+                </div>
+                <div className="text-right text-sm text-muted-foreground">
+                  <p>{historyData.length} cobro{historyData.length !== 1 ? 's' : ''}</p>
+                </div>
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Total venta</TableHead>
+                    <TableHead>Cobrado</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Medio</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {historyData.map(s => (
+                    <TableRow key={s.id}>
+                      <TableCell className="font-medium">{clientMap.get(s.client_id)?.name || '-'}</TableCell>
+                      <TableCell>{formatMoney(s.total)}</TableCell>
+                      <TableCell className="font-semibold text-green-600">{formatMoney(s.paid_amount)}</TableCell>
+                      <TableCell>
+                        <Badge variant={s.status === 'paid' ? 'default' : 'outline'}>
+                          {s.status === 'paid' ? 'Pagado' : 'Parcial'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{s.payment_method ? methodLabel[s.payment_method] || s.payment_method : '-'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={payOpen} onOpenChange={setPayOpen}>
         <DialogContent>

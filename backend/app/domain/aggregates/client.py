@@ -23,8 +23,13 @@ class Client(Base):
     email: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     latitude: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 7), nullable=True)
     longitude: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 7), nullable=True)
+    hashed_password: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
     loyalty_points: Mapped[int] = mapped_column(default=0)
     is_active: Mapped[bool] = mapped_column(default=True)
+    electronic_invoicing_enabled: Mapped[bool] = mapped_column(default=False, nullable=False)
+    dian_id_type: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
 
     prices: Mapped[list["ClientPrice"]] = relationship(
         back_populates="client", cascade="all, delete-orphan"

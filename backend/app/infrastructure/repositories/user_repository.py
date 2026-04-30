@@ -13,3 +13,8 @@ class UserRepository(BaseRepository[User]):
         stmt = select(User).where(User.username == username)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def get_by_phone(self, phone: str) -> User | None:
+        stmt = select(User).where(User.phone == phone)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()

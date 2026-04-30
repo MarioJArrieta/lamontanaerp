@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { Plus, UserCircle, Search, MapPin, Map, Navigation, Droplets, Tag, Trash2 } from 'lucide-react';
+import { Plus, UserCircle, Search, MapPin, Map, Navigation, Droplets, Tag, Trash2, KeyRound, Cloud } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { SubmitButton } from '@/components/ui/submit-button';
 import api from '@/lib/api';
 import { sv } from '@/lib/helpers';
-import type { Client, Product, LoyaltyTransaction, LoyaltyConfig } from '@/types';
+import type { Client, Product, LoyaltyTransaction, LoyaltyConfig, DianIdType } from '@/types';
+import { DIAN_ID_TYPES } from '@/types';
 import LocationMap from '@/components/shared/LocationMap';
 import ClientsMap from '@/components/shared/ClientsMap';
 
@@ -34,19 +35,36 @@ export default function Clients() {
   const [mapLng, setMapLng] = useState<number | null>(null);
   const [allMapOpen, setAllMapOpen] = useState(false);
   const [page, setPage] = useState(1);
-  const [gotasClient, setGotasClient] = useState<Client | null>(null);
-  const [gotasHistory, setGotasHistory] = useState<LoyaltyTransaction[]>([]);
-  const [gotasConfig, setGotasConfig] = useState<LoyaltyConfig | null>(null);
+  const [puntosClient, setPuntosClient] = useState<Client | null>(null);
+  const [puntosHistory, setPuntosHistory] = useState<LoyaltyTransaction[]>([]);
+  const [puntosConfig, setPuntosConfig] = useState<LoyaltyConfig | null>(null);
   const [redeemAmount, setRedeemAmount] = useState('');
   const [redeeming, setRedeeming] = useState(false);
   const [priceClient, setPriceClient] = useState<Client | null>(null);
   const [priceProductId, setPriceProductId] = useState('');
   const [priceValue, setPriceValue] = useState('');
   const [savingPrice, setSavingPrice] = useState(false);
-  const [form, setForm] = useState({
-    name: '', client_type: 'person', cedula_nit: '',
+  const [form, setForm] = useState<{
+    name: string;
+    client_type: string;
+    cedula_nit: string;
+    dian_id_type: DianIdType | '';
+    address: string;
+    delivery_zone: string;
+    phone: string;
+    email: string;
+    electronic_invoicing_enabled: boolean;
+  }>({
+    name: '', client_type: 'person', cedula_nit: '', dian_id_type: '',
     address: '', delivery_zone: '', phone: '', email: '',
+    electronic_invoicing_enabled: false,
   });
+
+  const emptyForm = {
+    name: '', client_type: 'person', cedula_nit: '', dian_id_type: '' as DianIdType | '',
+    address: '', delivery_zone: '', phone: '', email: '',
+    electronic_invoicing_enabled: false,
+  };
 
   const fetchData = () => {
     Promise.all([
@@ -61,30 +79,38 @@ export default function Clients() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!form.dian_id_type) {
+      toast.error('Selecciona el tipo de documento');
+      return;
+    }
     setSaving(true);
+    const payload = {
+      name: form.name,
+      client_type: form.client_type,
+      cedula_nit: form.cedula_nit,
+      dian_id_type: form.dian_id_type,
+      address: form.address || null,
+      delivery_zone: form.delivery_zone || null,
+      phone: form.phone || null,
+      email: form.email || null,
+      electronic_invoicing_enabled: form.electronic_invoicing_enabled,
+    };
     try {
       if (editId) {
-        await api.put(`/clients/${editId}`, {
-          name: form.name,
-          address: form.address || null,
-          delivery_zone: form.delivery_zone || null,
-          phone: form.phone || null,
-          email: form.email || null,
-        });
+        await api.put(`/clients/${editId}`, payload);
         toast.success('Cliente actualizado');
       } else {
-        await api.post('/clients', {
-          ...form,
-          address: form.address || null,
-          delivery_zone: form.delivery_zone || null,
-          phone: form.phone || null,
-          email: form.email || null,
-        });
-        toast.success('Cliente creado');
+        const res = await api.post('/clients', payload);
+        const pwd = res.data?.generated_password;
+        if (pwd) {
+          toast.success(`Cliente creado. Password: ${pwd}`, { duration: 15000 });
+        } else {
+          toast.success('Cliente creado');
+        }
       }
       setOpen(false);
       setEditId(null);
-      setForm({ name: '', client_type: 'person', cedula_nit: '', address: '', delivery_zone: '', phone: '', email: '' });
+      setForm(emptyForm);
       fetchData();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
@@ -98,8 +124,10 @@ export default function Clients() {
     setEditId(c.id);
     setForm({
       name: c.name, client_type: c.client_type, cedula_nit: c.cedula_nit,
+      dian_id_type: c.dian_id_type || '',
       address: c.address || '', delivery_zone: c.delivery_zone || '',
       phone: c.phone || '', email: c.email || '',
+      electronic_invoicing_enabled: c.electronic_invoicing_enabled ?? false,
     });
     setOpen(true);
   };
@@ -127,28 +155,38 @@ export default function Clients() {
     }
   };
 
-  const openGotas = async (c: Client) => {
-    setGotasClient(c);
+  const handleResetPassword = async (c: Client) => {
+    try {
+      const res = await api.post(`/clients/${c.id}/password/reset`);
+      const pwd = res.data?.generated_password;
+      toast.success(`Nueva password para ${c.name}: ${pwd}`, { duration: 15000 });
+    } catch {
+      toast.error('Error al resetear password');
+    }
+  };
+
+  const openPuntos = async (c: Client) => {
+    setPuntosClient(c);
     setRedeemAmount('');
     try {
       const [histRes, cfgRes] = await Promise.all([
         api.get(`/loyalty/${c.id}/history`),
         api.get('/loyalty/config'),
       ]);
-      setGotasHistory(histRes.data);
-      setGotasConfig(cfgRes.data);
+      setPuntosHistory(histRes.data);
+      setPuntosConfig(cfgRes.data);
     } catch {
-      toast.error('Error al cargar gotas');
+      toast.error('Error al cargar puntos');
     }
   };
 
   const handleRedeem = async () => {
-    if (!gotasClient || !redeemAmount) return;
+    if (!puntosClient || !redeemAmount) return;
     setRedeeming(true);
     try {
-      await api.post(`/loyalty/${gotasClient.id}/redeem`, { points: Number(redeemAmount) });
-      toast.success('Gotas canjeadas');
-      openGotas({ ...gotasClient, loyalty_points: gotasClient.loyalty_points - Number(redeemAmount) });
+      await api.post(`/loyalty/${puntosClient.id}/redeem`, { points: Number(redeemAmount) });
+      toast.success('Puntos canjeados');
+      openPuntos({ ...puntosClient, loyalty_points: puntosClient.loyalty_points - Number(redeemAmount) });
       fetchData();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
@@ -224,7 +262,7 @@ export default function Clients() {
           <Button variant="outline" onClick={() => setAllMapOpen(true)}>
             <Map className="w-4 h-4 mr-2" />Ver mapa
           </Button>
-          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditId(null); setForm({ name: '', client_type: 'person', cedula_nit: '', address: '', delivery_zone: '', phone: '', email: '' }); } }}>
+          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditId(null); setForm(emptyForm); } }}>
             <DialogTrigger>
               <Button><Plus className="w-4 h-4 mr-2" />Nuevo cliente</Button>
             </DialogTrigger>
@@ -247,9 +285,26 @@ export default function Clients() {
                     </Select>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Cedula / NIT</Label>
-                  <Input value={form.cedula_nit} onChange={e => setForm({...form, cedula_nit: e.target.value})} required />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Tipo de documento <span className="text-red-500">*</span></Label>
+                    <Select value={form.dian_id_type || null} onValueChange={v => setForm({...form, dian_id_type: sv(v) as DianIdType})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar tipo">
+                          {(v: string) => DIAN_ID_TYPES.find(t => t.code === v)?.label || 'Seleccionar tipo'}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DIAN_ID_TYPES.map(t => (
+                          <SelectItem key={t.code} value={t.code}>{t.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Numero de documento</Label>
+                    <Input value={form.cedula_nit} onChange={e => setForm({...form, cedula_nit: e.target.value})} required />
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -271,6 +326,30 @@ export default function Clients() {
                     <Input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
                   </div>
                 </div>
+
+                <div className="rounded-lg border bg-muted/30 p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Cloud className="w-4 h-4 text-emerald-600" />
+                      <div>
+                        <Label className="cursor-pointer">Habilitar factura electronica</Label>
+                        <p className="text-xs text-muted-foreground">Permite emitir facturas DIAN para este cliente</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={form.electronic_invoicing_enabled}
+                      onClick={() => setForm({ ...form, electronic_invoicing_enabled: !form.electronic_invoicing_enabled })}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${form.electronic_invoicing_enabled ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition-transform ${form.electronic_invoicing_enabled ? 'translate-x-5' : 'translate-x-0'}`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
                 <SubmitButton loading={saving} className="w-full">{editId ? 'Guardar' : 'Crear'}</SubmitButton>
               </form>
             </DialogContent>
@@ -302,7 +381,7 @@ export default function Clients() {
                   <TableHead>Cedula/NIT</TableHead>
                   <TableHead className="w-24">Zona</TableHead>
                   <TableHead>Telefono</TableHead>
-                  <TableHead>Gotas</TableHead>
+                  <TableHead>Puntos</TableHead>
                   <TableHead>Precios especiales</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>Acciones</TableHead>
@@ -333,7 +412,7 @@ export default function Clients() {
                     <TableCell>{c.delivery_zone || '-'}</TableCell>
                     <TableCell>{c.phone || '-'}</TableCell>
                     <TableCell>
-                      <button onClick={() => openGotas(c)} className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium text-sm">
+                      <button onClick={() => openPuntos(c)} className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium text-sm">
                         <Droplets className="w-3.5 h-3.5" />{c.loyalty_points}
                       </button>
                     </TableCell>
@@ -349,6 +428,9 @@ export default function Clients() {
                           <MapPin className="w-3.5 h-3.5 mr-1" />Ubicacion
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => openEdit(c)}>Editar</Button>
+                        <Button size="sm" variant="ghost" onClick={() => handleResetPassword(c)} title="Resetear password">
+                          <KeyRound className="w-3.5 h-3.5" />
+                        </Button>
                         {c.is_active && <Button size="sm" variant="ghost" className="text-destructive" onClick={() => handleDelete(c.id)}>Eliminar</Button>}
                       </div>
                     </TableCell>
@@ -480,47 +562,47 @@ export default function Clients() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!gotasClient} onOpenChange={() => setGotasClient(null)}>
+      <Dialog open={!!puntosClient} onOpenChange={() => setPuntosClient(null)}>
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Droplets className="w-5 h-5 text-blue-500" />
-              Gotas de {gotasClient?.name}
+              Puntos de {puntosClient?.name}
             </DialogTitle>
           </DialogHeader>
-          {gotasClient && (
+          {puntosClient && (
             <div className="space-y-4">
               <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
                 <div>
                   <p className="text-sm text-muted-foreground">Balance actual</p>
-                  <p className="text-2xl font-bold text-blue-600">{gotasClient.loyalty_points} gotas</p>
+                  <p className="text-2xl font-bold text-blue-600">{puntosClient.loyalty_points} puntos</p>
                 </div>
-                {gotasConfig && (
+                {puntosConfig && (
                   <div className="text-right text-xs text-muted-foreground">
-                    <p>{gotasConfig.gotas_per_paca} gota/paca</p>
-                    <p>{gotasConfig.gotas_to_redeem_paca} gotas = 1 paca gratis</p>
+                    <p>{puntosConfig.puntos_per_paca} punto/paca</p>
+                    <p>{puntosConfig.puntos_to_redeem_paca} puntos = 1 paca gratis</p>
                   </div>
                 )}
               </div>
 
-              {gotasConfig && gotasClient.loyalty_points >= gotasConfig.gotas_to_redeem_paca && (
+              {puntosConfig && puntosClient.loyalty_points >= puntosConfig.puntos_to_redeem_paca && (
                 <div className="flex gap-2 items-end">
                   <div className="flex-1 space-y-1">
-                    <Label className="text-xs">Canjear gotas</Label>
+                    <Label className="text-xs">Canjear puntos</Label>
                     <Input
                       type="number"
-                      placeholder={`Min. ${gotasConfig.gotas_to_redeem_paca}`}
+                      placeholder={`Min. ${puntosConfig.puntos_to_redeem_paca}`}
                       value={redeemAmount}
                       onChange={e => setRedeemAmount(e.target.value)}
-                      min={gotasConfig.gotas_to_redeem_paca}
-                      max={gotasClient.loyalty_points}
-                      step={gotasConfig.gotas_to_redeem_paca}
+                      min={puntosConfig.puntos_to_redeem_paca}
+                      max={puntosClient.loyalty_points}
+                      step={puntosConfig.puntos_to_redeem_paca}
                     />
                   </div>
                   <SubmitButton
                     loading={redeeming}
                     onClick={handleRedeem}
-                    disabled={!redeemAmount || Number(redeemAmount) < gotasConfig.gotas_to_redeem_paca || Number(redeemAmount) > gotasClient.loyalty_points}
+                    disabled={!redeemAmount || Number(redeemAmount) < puntosConfig.puntos_to_redeem_paca || Number(redeemAmount) > puntosClient.loyalty_points}
                     type="button"
                     className="bg-blue-600 hover:bg-blue-700"
                   >
@@ -531,11 +613,11 @@ export default function Clients() {
 
               <div>
                 <p className="text-sm font-medium mb-2">Historial</p>
-                {gotasHistory.length === 0 ? (
+                {puntosHistory.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">Sin movimientos</p>
                 ) : (
                   <div className="space-y-1 max-h-60 overflow-y-auto">
-                    {gotasHistory.map(tx => (
+                    {puntosHistory.map(tx => (
                       <div key={tx.id} className="flex items-center justify-between py-1.5 px-2 rounded text-sm hover:bg-muted/50">
                         <div>
                           <p className="text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleDateString('es-CO')}</p>
@@ -550,7 +632,7 @@ export default function Clients() {
                 )}
               </div>
 
-              <Button variant="outline" className="w-full" onClick={() => setGotasClient(null)}>Cerrar</Button>
+              <Button variant="outline" className="w-full" onClick={() => setPuntosClient(null)}>Cerrar</Button>
             </div>
           )}
         </DialogContent>

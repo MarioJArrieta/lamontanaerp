@@ -14,7 +14,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { SubmitButton } from '@/components/ui/submit-button';
 import api from '@/lib/api';
 import { sv } from '@/lib/helpers';
-import type { Product, Inventory } from '@/types';
+import type { Product, Inventory, DianTaxType } from '@/types';
+
+const DIAN_TAX_TYPES: { code: DianTaxType; label: string }[] = [
+  { code: 'ZZ', label: 'ZZ - No aplica' },
+  { code: '01', label: '01 - IVA' },
+  { code: '04', label: '04 - INC' },
+];
 
 const unitLabel: Record<string, string> = { paca: 'Paca', botellon: 'Botellon', unidad: 'Unidad' };
 
@@ -28,7 +34,17 @@ export default function Products() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', product_type: 'paca_x40', unit: 'paca', base_price: '' });
+  const [form, setForm] = useState<{
+    name: string;
+    product_type: string;
+    unit: string;
+    base_price: string;
+    tax_rate: string;
+    dian_tax_type: DianTaxType;
+    tax_included: boolean;
+  }>({ name: '', product_type: 'paca_x40', unit: 'paca', base_price: '', tax_rate: '0', dian_tax_type: 'ZZ', tax_included: false });
+
+  const emptyForm = { name: '', product_type: 'paca_x40', unit: 'paca', base_price: '', tax_rate: '0', dian_tax_type: 'ZZ' as DianTaxType, tax_included: false };
   const [stockOpen, setStockOpen] = useState(false);
   const [stockProductId, setStockProductId] = useState<string | null>(null);
   const [stockQty, setStockQty] = useState('');
@@ -52,7 +68,13 @@ export default function Products() {
     setSaving(true);
     try {
       if (editId) {
-        await api.put(`/products/${editId}`, { name: form.name, base_price: form.base_price });
+        await api.put(`/products/${editId}`, {
+          name: form.name,
+          base_price: form.base_price,
+          tax_rate: form.tax_rate,
+          dian_tax_type: form.dian_tax_type,
+          tax_included: form.tax_included,
+        });
         toast.success('Producto actualizado');
       } else {
         await api.post('/products', form);
@@ -60,7 +82,7 @@ export default function Products() {
       }
       setOpen(false);
       setEditId(null);
-      setForm({ name: '', product_type: 'paca_x40', unit: 'paca', base_price: '' });
+      setForm(emptyForm);
       fetchData();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
@@ -72,7 +94,15 @@ export default function Products() {
 
   const openEdit = (p: Product) => {
     setEditId(p.id);
-    setForm({ name: p.name, product_type: p.product_type, unit: p.unit, base_price: p.base_price });
+    setForm({
+      name: p.name,
+      product_type: p.product_type,
+      unit: p.unit,
+      base_price: p.base_price,
+      tax_rate: p.tax_rate ?? '0',
+      dian_tax_type: (p.dian_tax_type ?? 'ZZ') as DianTaxType,
+      tax_included: p.tax_included ?? false,
+    });
     setOpen(true);
   };
 
@@ -124,7 +154,7 @@ export default function Products() {
         title="Productos"
         description="Catalogo de productos"
         action={
-          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditId(null); setForm({ name: '', product_type: 'paca_x40', unit: 'paca', base_price: '' }); } }}>
+          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditId(null); setForm(emptyForm); } }}>
             <DialogTrigger>
               <Button><Plus className="w-4 h-4 mr-2" />Nuevo producto</Button>
             </DialogTrigger>
@@ -152,6 +182,60 @@ export default function Products() {
                   <Label>Precio base</Label>
                   <Input type="number" value={form.base_price} onChange={e => setForm({...form, base_price: e.target.value})} required />
                 </div>
+
+                <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Impuestos (DIAN)</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>IVA (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        value={form.tax_rate}
+                        onChange={e => setForm({...form, tax_rate: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Tipo de tributo</Label>
+                      <Select value={form.dian_tax_type} onValueChange={v => setForm({...form, dian_tax_type: sv(v) as DianTaxType})}>
+                        <SelectTrigger>
+                          <SelectValue>
+                            {(v: string) => DIAN_TAX_TYPES.find(t => t.code === v)?.label || v}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DIAN_TAX_TYPES.map(t => (
+                            <SelectItem key={t.code} value={t.code}>{t.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <div>
+                      <Label className="cursor-pointer">El precio base ya incluye IVA</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {form.tax_included
+                          ? 'El IVA se descontará del precio base al facturar'
+                          : 'El IVA se sumará al precio base al facturar'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={form.tax_included}
+                      onClick={() => setForm({ ...form, tax_included: !form.tax_included })}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${form.tax_included ? 'bg-blue-600' : 'bg-gray-300'}`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition-transform ${form.tax_included ? 'translate-x-5' : 'translate-x-0'}`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
                 <SubmitButton loading={saving} className="w-full">{editId ? 'Guardar' : 'Crear'}</SubmitButton>
               </form>
             </DialogContent>
@@ -170,6 +254,7 @@ export default function Products() {
                   <TableHead>Nombre</TableHead>
                   <TableHead>Unidad</TableHead>
                   <TableHead>Precio base</TableHead>
+                  <TableHead>IVA</TableHead>
                   <TableHead>Stock</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>Acciones</TableHead>
@@ -178,7 +263,7 @@ export default function Products() {
               <TableBody>
                 {pg.data.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
+                    <TableCell colSpan={7} className="text-center py-8">
                       <Package className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No hay productos</p>
                     </TableCell>
@@ -188,6 +273,12 @@ export default function Products() {
                     <TableCell className="font-medium">{p.name}</TableCell>
                     <TableCell>{p.unit}</TableCell>
                     <TableCell>{formatMoney(p.base_price)}</TableCell>
+                    <TableCell>
+                      {Number(p.tax_rate ?? 0).toFixed(0)}%
+                      {p.tax_included && Number(p.tax_rate ?? 0) > 0 && (
+                        <span className="ml-1 text-xs text-muted-foreground">(inc.)</span>
+                      )}
+                    </TableCell>
                     <TableCell className="font-semibold">{stockMap.get(p.id) ?? 0}</TableCell>
                     <TableCell><Badge variant={p.is_active ? 'default' : 'destructive'}>{p.is_active ? 'Activo' : 'Inactivo'}</Badge></TableCell>
                     <TableCell>

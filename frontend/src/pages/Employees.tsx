@@ -30,7 +30,7 @@ export default function Employees() {
   const [page, setPage] = useState(1);
   const [form, setForm] = useState({
     name: '', cedula: '', role: 'packer', pay_period: 'weekly',
-    fixed_salary: '', rate_per_paca: '', phone: '',
+    fixed_salary: '', rate_per_paca: '', rate_per_botellon: '', phone: '',
   });
 
   const fetchData = () => {
@@ -48,6 +48,7 @@ export default function Employees() {
           phone: form.phone || null,
           fixed_salary: form.fixed_salary ? Number(form.fixed_salary) : null,
           rate_per_paca: form.rate_per_paca ? Number(form.rate_per_paca) : null,
+          rate_per_botellon: form.rate_per_botellon ? Number(form.rate_per_botellon) : null,
         });
       } else {
         await api.post('/employees', {
@@ -57,13 +58,14 @@ export default function Employees() {
           pay_period: form.pay_period,
           fixed_salary: form.fixed_salary ? Number(form.fixed_salary) : null,
           rate_per_paca: form.rate_per_paca ? Number(form.rate_per_paca) : null,
+          rate_per_botellon: form.rate_per_botellon ? Number(form.rate_per_botellon) : null,
           phone: form.phone || null,
         });
       }
       toast.success(editId ? 'Empleado actualizado' : 'Empleado creado');
       setOpen(false);
       setEditId(null);
-      setForm({ name: '', cedula: '', role: 'packer', pay_period: 'weekly', fixed_salary: '', rate_per_paca: '', phone: '' });
+      setForm({ name: '', cedula: '', role: 'packer', pay_period: 'weekly', fixed_salary: '', rate_per_paca: '', rate_per_botellon: '', phone: '' });
       fetchData();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error al crear';
@@ -77,7 +79,7 @@ export default function Employees() {
     setEditId(emp.id);
     setForm({
       name: emp.name, cedula: emp.cedula, role: emp.role, pay_period: emp.pay_period,
-      fixed_salary: emp.fixed_salary || '', rate_per_paca: emp.rate_per_paca || '', phone: emp.phone || '',
+      fixed_salary: emp.fixed_salary || '', rate_per_paca: emp.rate_per_paca || '', rate_per_botellon: emp.rate_per_botellon || '', phone: emp.phone || '',
     });
     setOpen(true);
   };
@@ -104,7 +106,7 @@ export default function Employees() {
         title="Empleados"
         description="Gestion de empleados de La Montana"
         action={
-          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditId(null); setForm({ name: '', cedula: '', role: 'packer', pay_period: 'weekly', fixed_salary: '', rate_per_paca: '', phone: '' }); } }}>
+          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditId(null); setForm({ name: '', cedula: '', role: 'packer', pay_period: 'weekly', fixed_salary: '', rate_per_paca: '', rate_per_botellon: '', phone: '' }); } }}>
             <DialogTrigger>
               <Button><Plus className="w-4 h-4 mr-2" />Nuevo empleado</Button>
             </DialogTrigger>
@@ -150,9 +152,15 @@ export default function Employees() {
                     <Input type="number" value={form.fixed_salary} onChange={e => setForm({...form, fixed_salary: e.target.value})} placeholder="1500000" />
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    <Label>Tarifa por paca</Label>
-                    <Input type="number" value={form.rate_per_paca} onChange={e => setForm({...form, rate_per_paca: e.target.value})} placeholder="200" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Tarifa por paca</Label>
+                      <Input type="number" value={form.rate_per_paca} onChange={e => setForm({...form, rate_per_paca: e.target.value})} placeholder="200" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Tarifa por botellon</Label>
+                      <Input type="number" value={form.rate_per_botellon} onChange={e => setForm({...form, rate_per_botellon: e.target.value})} placeholder="200" />
+                    </div>
                   </div>
                 )}
                 <div className="space-y-2">
@@ -198,7 +206,9 @@ export default function Employees() {
                     <TableCell>{emp.cedula}</TableCell>
                     <TableCell><Badge variant={roleBadgeVariant(emp.role)}>{roleLabel[emp.role]}</Badge></TableCell>
                     <TableCell>{emp.pay_period === 'weekly' ? 'Semanal' : 'Mensual'}</TableCell>
-                    <TableCell>{emp.role === 'secretary' ? formatMoney(emp.fixed_salary) : `${formatMoney(emp.rate_per_paca)}/paca`}</TableCell>
+                    <TableCell>{emp.role === 'secretary' ? formatMoney(emp.fixed_salary) : (
+                      <span>{emp.rate_per_paca ? `${formatMoney(emp.rate_per_paca)}/paca` : ''}{emp.rate_per_paca && emp.rate_per_botellon ? ', ' : ''}{emp.rate_per_botellon ? `${formatMoney(emp.rate_per_botellon)}/bot.` : ''}</span>
+                    )}</TableCell>
                     <TableCell>{emp.phone || '-'}</TableCell>
                     <TableCell><Badge variant={emp.is_active ? 'default' : 'destructive'}>{emp.is_active ? 'Activo' : 'Inactivo'}</Badge></TableCell>
                     <TableCell>

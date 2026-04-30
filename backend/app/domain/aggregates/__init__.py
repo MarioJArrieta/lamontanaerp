@@ -16,6 +16,8 @@ from app.domain.aggregates.company_settings import CompanySettings
 from app.domain.aggregates.expense import Expense
 from app.domain.aggregates.other_income import OtherIncome
 from app.domain.aggregates.loyalty_transaction import LoyaltyTransaction
+from app.domain.aggregates.quote import Quote
+from app.domain.aggregates.quote_item import QuoteItem
 
 __all__ = [
     "Base",
@@ -38,4 +40,6 @@ __all__ = [
     "Expense",
     "OtherIncome",
     "LoyaltyTransaction",
+    "Quote",
+    "QuoteItem",
 ]
