@@ -29,8 +29,8 @@ class LoyaltyService:
     ) -> int:
         settings = get_settings()
         points = (
-            total_pacas * settings.gotas_per_paca
-            + total_botellones * settings.gotas_per_botellon
+            total_pacas * settings.puntos_per_paca
+            + total_botellones * settings.puntos_per_botellon
         )
         if points <= 0:
             return 0
@@ -40,7 +40,7 @@ class LoyaltyService:
             transaction_type=LoyaltyTransactionType.EARN,
             points=points,
             sale_id=sale_id,
-            description=f"+{points} gotas por compra ({total_pacas} pacas, {total_botellones} botellones)",
+            description=f"+{points} puntos por compra ({total_pacas} pacas, {total_botellones} botellones)",
         )
         self.session.add(tx)
 
@@ -68,7 +68,7 @@ class LoyaltyService:
             transaction_type=LoyaltyTransactionType.REVERSAL,
             points=-total_earned,
             sale_id=sale_id,
-            description=f"Reversa de {total_earned} gotas por eliminacion de venta",
+            description=f"Reversa de {total_earned} puntos por eliminacion de venta",
         )
         self.session.add(reversal)
 
@@ -79,28 +79,35 @@ class LoyaltyService:
         await self.session.flush()
 
     async def redeem(
-        self, client_id: uuid.UUID, points_to_redeem: int
+        self,
+        client_id: uuid.UUID,
+        points_to_redeem: int,
+        description: str | None = None,
     ) -> LoyaltyTransaction:
         client = await self.client_repo.get_by_id_with_prices(client_id)
         if not client:
             raise ValueError("Cliente no encontrado")
 
         if points_to_redeem <= 0:
-            raise ValueError("Cantidad de gotas debe ser positiva")
+            raise ValueError("Cantidad de puntos debe ser positiva")
 
         if client.loyalty_points < points_to_redeem:
             raise ValueError(
-                f"Gotas insuficientes. Tiene {client.loyalty_points}, necesita {points_to_redeem}"
+                f"Puntos insuficientes. Tiene {client.loyalty_points}, necesita {points_to_redeem}"
             )
 
-        settings = get_settings()
-        pacas = points_to_redeem // settings.gotas_to_redeem_paca
+        if description is None:
+            settings = get_settings()
+            pacas = points_to_redeem // settings.puntos_to_redeem_paca
+            description = (
+                f"Canje de {points_to_redeem} puntos por {pacas} paca(s) gratis"
+            )
 
         tx = LoyaltyTransaction(
             client_id=client_id,
             transaction_type=LoyaltyTransactionType.REDEEM,
             points=-points_to_redeem,
-            description=f"Canje de {points_to_redeem} gotas por {pacas} paca(s) gratis",
+            description=description,
         )
         self.session.add(tx)
         client.loyalty_points -= points_to_redeem

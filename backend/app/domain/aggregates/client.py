@@ -28,6 +28,8 @@ class Client(Base):
     )
     loyalty_points: Mapped[int] = mapped_column(default=0)
     is_active: Mapped[bool] = mapped_column(default=True)
+    electronic_invoicing_enabled: Mapped[bool] = mapped_column(default=False, nullable=False)
+    dian_id_type: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
 
     prices: Mapped[list["ClientPrice"]] = relationship(
         back_populates="client", cascade="all, delete-orphan"

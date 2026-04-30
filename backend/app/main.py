@@ -78,6 +78,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await conn.execute(text(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20) UNIQUE"
         ))
+        # Add rate_per_botellon to employees if not exists
+        await conn.execute(text(
+            "ALTER TABLE employees ADD COLUMN IF NOT EXISTS rate_per_botellon NUMERIC(10,2)"
+        ))
         # Add employee_id to users if not exists
         await conn.execute(text(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS employee_id UUID REFERENCES employees(id)"
@@ -94,6 +98,59 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             "WHERE status != 'DELIVERED' "
             "AND sale_id IN (SELECT id FROM sales WHERE status = 'PAID')"
         ))
+        # Loyalty points
+        await conn.execute(text(
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS "
+            "loyalty_points INTEGER NOT NULL DEFAULT 0"
+        ))
+        # DIAN electronic invoicing fields
+        await conn.execute(text(
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS "
+            "electronic_invoicing_enabled BOOLEAN NOT NULL DEFAULT false"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS dian_id_type VARCHAR(5)"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS "
+            "tax_rate NUMERIC(5,2) NOT NULL DEFAULT 0"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS "
+            "dian_tax_type VARCHAR(5) NOT NULL DEFAULT 'ZZ'"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS "
+            "tax_included BOOLEAN NOT NULL DEFAULT false"
+        ))
+        # DIAN facturador integration on company_settings
+        await conn.execute(text(
+            "ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS "
+            "dian_facturador_url VARCHAR(300)"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS "
+            "dian_facturador_api_key VARCHAR(200)"
+        ))
+        # DIAN response data on sales
+        await conn.execute(text(
+            "ALTER TABLE sales ADD COLUMN IF NOT EXISTS dian_document_number VARCHAR(50)"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE sales ADD COLUMN IF NOT EXISTS dian_cufe VARCHAR(200)"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE sales ADD COLUMN IF NOT EXISTS dian_status VARCHAR(30)"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE sales ADD COLUMN IF NOT EXISTS dian_status_message TEXT"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE sales ADD COLUMN IF NOT EXISTS dian_external_ref VARCHAR(100)"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE sales ADD COLUMN IF NOT EXISTS dian_pdf_path VARCHAR(300)"
+        ))
     yield
     await engine.dispose()
 
@@ -107,7 +164,10 @@ app = FastAPI(
 )
 
 import os
-cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+cors_origins = os.environ.get(
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:3000",
+).split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,

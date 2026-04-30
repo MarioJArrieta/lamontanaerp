@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, datetime, time
 
 from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,6 +46,23 @@ class SaleRepository(BaseRepository[Sale]):
         )
         if statuses:
             stmt = stmt.where(Sale.status.in_(statuses))
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_paid_on_date(self, target_date: date) -> list[Sale]:
+        start = datetime.combine(target_date, time.min)
+        end = datetime.combine(target_date, time.max)
+        stmt = (
+            select(Sale)
+            .options(selectinload(Sale.items), selectinload(Sale.client))
+            .where(
+                Sale.status.in_([SaleStatus.PAID, SaleStatus.PARTIAL]),
+                Sale.updated_at >= start,
+                Sale.updated_at <= end,
+                Sale.date < target_date,
+            )
+            .order_by(Sale.updated_at.desc())
+        )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 

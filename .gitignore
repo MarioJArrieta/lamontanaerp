@@ -37,3 +37,6 @@ htmlcov/
 
 # Alembic
 migrations/versions/__pycache__/
+
+# Local PDF cache (DIAN invoices fetched from facturador)
+backend/storage/

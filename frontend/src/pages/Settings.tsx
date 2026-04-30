@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { Settings as SettingsIcon, Upload, X } from 'lucide-react';
+import { Settings as SettingsIcon, Upload, X, Cloud, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +18,27 @@ export default function Settings() {
     phone: '',
     address: '',
     logo_url: '',
+    dian_facturador_url: '',
+    dian_facturador_api_key: '',
   });
+  const [apiKeyMasked, setApiKeyMasked] = useState<string | null>(null);
+  const [editingApiKey, setEditingApiKey] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    ok: boolean;
+    message: string;
+    tenant?: {
+      name: string;
+      nit: string;
+      dv: string;
+      tax_regime: string;
+      city_name: string | null;
+      department_name: string | null;
+      email: string | null;
+      is_active: boolean;
+    };
+  } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -32,7 +52,10 @@ export default function Settings() {
             phone: s.phone || '',
             address: s.address || '',
             logo_url: s.logo_url || '',
+            dian_facturador_url: s.dian_facturador_url || '',
+            dian_facturador_api_key: '',
           });
+          setApiKeyMasked(s.dian_facturador_api_key_masked || null);
         }
       })
       .catch(() => {
@@ -69,18 +92,42 @@ export default function Settings() {
     }
     setSaving(true);
     try {
-      await api.put('/settings', {
+      const payload: Record<string, string | null> = {
         name: form.name,
         nit: form.nit || null,
         phone: form.phone || null,
         address: form.address || null,
         logo_url: form.logo_url || null,
-      });
+        dian_facturador_url: form.dian_facturador_url || null,
+      };
+      // Send api_key if user is creating it for the first time (no masked yet) or explicitly editing.
+      // Avoid wiping a stored key when the user just saves other fields without re-entering it.
+      if (editingApiKey || !apiKeyMasked) {
+        payload.dian_facturador_api_key = form.dian_facturador_api_key || null;
+      }
+      const r = await api.put('/settings', payload);
+      setApiKeyMasked(r.data?.dian_facturador_api_key_masked || null);
+      setForm(f => ({ ...f, dian_facturador_api_key: '' }));
+      setEditingApiKey(false);
       toast.success('Configuracion guardada');
     } catch {
       toast.error('Error al guardar');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const testConnection = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const r = await api.post('/settings/dian/test-connection');
+      setTestResult({ ok: r.data.ok, message: r.data.message, tenant: r.data.tenant });
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
+      setTestResult({ ok: false, message: msg });
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -197,6 +244,110 @@ export default function Settings() {
                   onChange={e => setForm({ ...form, address: e.target.value })}
                   placeholder="Cra 10 #20-30, Ciudad"
                 />
+              </div>
+
+              {/* DIAN integration */}
+              <div className="rounded-lg border bg-emerald-50/30 p-4 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Cloud className="w-5 h-5 text-emerald-600" />
+                  <div>
+                    <Label className="font-semibold">Integracion facturador DIAN</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Conexion al sistema externo que envia facturas electronicas a la DIAN.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>URL del facturador</Label>
+                  <Input
+                    value={form.dian_facturador_url}
+                    onChange={e => setForm({ ...form, dian_facturador_url: e.target.value })}
+                    placeholder="http://localhost:8001/api/v1"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>API Key</Label>
+                  {!editingApiKey && apiKeyMasked ? (
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 px-3 py-2 text-sm bg-muted rounded-md font-mono">{apiKeyMasked}</code>
+                      <Button type="button" variant="outline" size="sm" onClick={() => { setEditingApiKey(true); setShowApiKey(false); }}>
+                        Cambiar
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Input
+                          type={showApiKey ? 'text' : 'password'}
+                          value={form.dian_facturador_api_key}
+                          onChange={e => setForm({ ...form, dian_facturador_api_key: e.target.value })}
+                          placeholder={apiKeyMasked ? 'Pegar nueva API key (vacio para no cambiar)' : 'Pegar API key del facturador'}
+                          className="pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowApiKey(s => !s)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      {apiKeyMasked && (
+                        <Button type="button" variant="ghost" size="sm" onClick={() => { setEditingApiKey(false); setForm(f => ({ ...f, dian_facturador_api_key: '' })); }}>
+                          Cancelar
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {apiKeyMasked && form.dian_facturador_url && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={testConnection} disabled={testing}>
+                        {testing ? 'Probando...' : 'Probar conexion'}
+                      </Button>
+                      {testResult && (
+                        <div className={`flex items-center gap-1 text-sm ${testResult.ok ? 'text-emerald-700' : 'text-destructive'}`}>
+                          {testResult.ok ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                          <span>{testResult.message}</span>
+                        </div>
+                      )}
+                    </div>
+                    {testResult?.ok && testResult.tenant && (
+                      <div className="rounded-md border bg-white p-3 text-sm space-y-1.5">
+                        <div className="font-semibold text-emerald-800">{testResult.tenant.name}</div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-muted-foreground">
+                          <div>
+                            <span className="font-medium text-foreground">NIT:</span> {testResult.tenant.nit}-{testResult.tenant.dv}
+                          </div>
+                          <div>
+                            <span className="font-medium text-foreground">Regimen:</span> {testResult.tenant.tax_regime}
+                          </div>
+                          {(testResult.tenant.city_name || testResult.tenant.department_name) && (
+                            <div className="col-span-2">
+                              <span className="font-medium text-foreground">Ubicacion:</span>{' '}
+                              {[testResult.tenant.city_name, testResult.tenant.department_name].filter(Boolean).join(', ')}
+                            </div>
+                          )}
+                          {testResult.tenant.email && (
+                            <div className="col-span-2">
+                              <span className="font-medium text-foreground">Email:</span> {testResult.tenant.email}
+                            </div>
+                          )}
+                          <div>
+                            <span className="font-medium text-foreground">Estado:</span>{' '}
+                            <span className={testResult.tenant.is_active ? 'text-emerald-700' : 'text-destructive'}>
+                              {testResult.tenant.is_active ? 'Activo' : 'Inactivo'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <Button type="submit" className="w-full" disabled={saving}>

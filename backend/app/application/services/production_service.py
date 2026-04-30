@@ -161,12 +161,16 @@ class ProductionService:
         if not employee:
             raise ValueError("Empleado no encontrado")
 
-        # Calculate payment: pacas * rate_per_paca
-        rate = employee.rate_per_paca or Decimal("0")
-        amount = Decimal(production.pacas_produced) * rate
+        # Calculate payment: pacas * rate_per_paca + botellones * rate_per_botellon
+        rate_paca = employee.rate_per_paca or Decimal("0")
+        rate_botellon = employee.rate_per_botellon or Decimal("0")
+        amount = (
+            Decimal(production.pacas_produced) * rate_paca
+            + Decimal(production.botellones_produced) * rate_botellon
+        )
 
         if amount <= 0:
-            raise ValueError("El monto a pagar es 0. Verifique la tarifa por paca del empleado.")
+            raise ValueError("El monto a pagar es 0. Verifique las tarifas del empleado.")
 
         # Mark production as paid
         production.is_paid = True
@@ -177,7 +181,7 @@ class ProductionService:
         expense = Expense(
             date=production.date,
             category=ExpenseCategory.PAYROLL,
-            description=f"Pago produccion {production.pacas_produced} pacas - {employee.name}",
+            description=f"Pago produccion {production.pacas_produced} pacas, {production.botellones_produced} botellones - {employee.name}",
             amount=amount,
             notes=f"Produccion ID: {production.id}",
         )

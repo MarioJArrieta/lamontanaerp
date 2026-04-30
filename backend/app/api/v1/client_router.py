@@ -58,10 +58,12 @@ async def create_client(
             name=body.name,
             client_type=body.client_type,
             cedula_nit=body.cedula_nit,
+            dian_id_type=body.dian_id_type,
             address=body.address,
             delivery_zone=body.delivery_zone,
             phone=body.phone,
             email=body.email,
+            electronic_invoicing_enabled=body.electronic_invoicing_enabled,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))

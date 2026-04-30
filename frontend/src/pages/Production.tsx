@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { SubmitButton } from '@/components/ui/submit-button';
 import api from '@/lib/api';
 import { sv } from '@/lib/helpers';
-import type { Production as ProductionType, ProductionSummary, Employee, Bobina } from '@/types';
+import type { Production as ProductionType, Employee, Bobina } from '@/types';
 
 function formatMoney(val: string | number) {
   return Number(val).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
@@ -24,7 +24,6 @@ function formatMoney(val: string | number) {
 
 export default function Production() {
   const [productions, setProductions] = useState<ProductionType[]>([]);
-  const [summary, setSummary] = useState<ProductionSummary | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [bobinas, setBobinas] = useState<Bobina[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,12 +44,10 @@ export default function Production() {
     setLoading(true);
     Promise.all([
       api.get(`/production?from_date=${filterFrom}&to_date=${filterTo}`),
-      api.get(`/production/summary?from_date=${filterFrom}&to_date=${filterTo}`),
       api.get('/employees'),
       api.get('/bobinas?available_only=true'),
-    ]).then(([prodRes, sumRes, empRes, bobRes]) => {
+    ]).then(([prodRes, empRes, bobRes]) => {
       setProductions(prodRes.data);
-      setSummary(sumRes.data);
       setEmployees(empRes.data);
       setBobinas(bobRes.data);
     }).finally(() => setLoading(false));
@@ -255,14 +252,12 @@ export default function Production() {
         </div>
       </div>
 
-      {summary && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <StatCard title="Total pacas" value={summary.total_pacas} icon={Package} />
-          <StatCard title="Total botellones" value={summary.total_botellones} icon={Factory} />
-          <StatCard title="Desperdicio" value={summary.total_waste} icon={AlertTriangle} />
-          <StatCard title="Registros" value={summary.total_records} icon={BarChart3} />
-        </div>
-      )}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <StatCard title="Total pacas" value={filtered.reduce((s, p) => s + p.pacas_produced, 0)} icon={Package} />
+        <StatCard title="Total botellones" value={filtered.reduce((s, p) => s + p.botellones_produced, 0)} icon={Factory} />
+        <StatCard title="Desperdicio" value={filtered.reduce((s, p) => s + p.waste_pacas, 0)} icon={AlertTriangle} />
+        <StatCard title="Registros" value={filtered.length} icon={BarChart3} />
+      </div>
 
       <Card>
         <CardContent className="p-0">

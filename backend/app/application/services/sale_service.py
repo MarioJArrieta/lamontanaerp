@@ -52,6 +52,9 @@ class SaleService:
     ) -> list[Sale]:
         return await self.sale_repo.get_by_date_range(from_date, to_date, statuses)
 
+    async def get_collections_by_date(self, target_date: date) -> list[Sale]:
+        return await self.sale_repo.get_paid_on_date(target_date)
+
     async def get_by_id(self, sale_id: uuid.UUID) -> Sale | None:
         return await self.sale_repo.get_by_id_with_items(sale_id)
 
@@ -82,6 +85,7 @@ class SaleService:
         # Build sale items and calculate totals
         sale_items: list[SaleItem] = []
         subtotal = Decimal("0")
+        tax_total = Decimal("0")
         total_pacas = 0
         total_botellones = 0
 
@@ -101,13 +105,23 @@ class SaleService:
                 total_botellones += quantity
 
             # Use client price if exists, otherwise product base price
-            unit_price = client_prices.get(product.id, product.base_price)
+            display_price = client_prices.get(product.id, product.base_price)
             # Allow explicit price override from request
             if "unit_price" in item_data and item_data["unit_price"] is not None:
-                unit_price = Decimal(str(item_data["unit_price"]))
+                display_price = Decimal(str(item_data["unit_price"]))
 
-            item_subtotal = unit_price * quantity
+            tax_rate = product.tax_rate or Decimal("0")
+            tax_factor = Decimal("1") + tax_rate / Decimal("100")
+            if product.tax_included and tax_rate > 0:
+                # display_price already includes IVA → split into net + tax
+                unit_price = display_price / tax_factor
+            else:
+                unit_price = display_price
+
+            item_subtotal = (unit_price * quantity).quantize(Decimal("0.01"))
+            item_tax = (item_subtotal * tax_rate / Decimal("100")).quantize(Decimal("0.01"))
             subtotal += item_subtotal
+            tax_total += item_tax
 
             sale_items.append(SaleItem(
                 product_id=product.id,
@@ -122,8 +136,8 @@ class SaleService:
             client_id=client_id,
             delivery_employee_id=delivery_employee_id,
             subtotal=subtotal,
-            tax=Decimal("0"),
-            total=subtotal,
+            tax=tax_total,
+            total=subtotal + tax_total,
             payment_type=payment_type,
             status=SaleStatus.PENDING,
             notes=notes,
@@ -154,7 +168,7 @@ class SaleService:
         self.session.add(delivery)
         await self.session.flush()
 
-        # Earn loyalty points (gotas)
+        # Earn loyalty points (puntos)
         await self.loyalty_service.earn_points_for_sale(
             client_id=client_id,
             sale_id=sale.id,

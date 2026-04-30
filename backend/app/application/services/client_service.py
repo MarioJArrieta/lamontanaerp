@@ -24,10 +24,12 @@ class ClientService:
         name: str,
         client_type: ClientType,
         cedula_nit: str,
+        dian_id_type: str,
         address: str | None = None,
         delivery_zone: str | None = None,
         phone: str | None = None,
         email: str | None = None,
+        electronic_invoicing_enabled: bool = False,
     ) -> tuple[Client, str]:
         existing = await self.repo.get_by_cedula_nit(cedula_nit)
         if existing:
@@ -38,10 +40,12 @@ class ClientService:
             name=name,
             client_type=client_type,
             cedula_nit=cedula_nit,
+            dian_id_type=dian_id_type,
             address=address,
             delivery_zone=delivery_zone,
             phone=phone,
             email=email,
+            electronic_invoicing_enabled=electronic_invoicing_enabled,
             hashed_password=hash_password(plain_password),
             prices=[],
         )

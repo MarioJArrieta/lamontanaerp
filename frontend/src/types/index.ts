@@ -16,10 +16,13 @@ export interface Employee {
   pay_period: 'weekly' | 'monthly';
   fixed_salary: string | null;
   rate_per_paca: string | null;
+  rate_per_botellon: string | null;
   phone: string | null;
   is_active: boolean;
   created_at: string;
 }
+
+export type DianTaxType = 'ZZ' | '01' | '04';
 
 export interface Product {
   id: string;
@@ -27,6 +30,9 @@ export interface Product {
   product_type: 'paca_x40' | 'botellon_20l';
   unit: string;
   base_price: string;
+  tax_rate: string;
+  dian_tax_type: DianTaxType;
+  tax_included: boolean;
   is_active: boolean;
   created_at: string;
 }
@@ -36,6 +42,18 @@ export interface ClientPrice {
   product_id: string;
   price: string;
 }
+
+export type DianIdType = '11' | '12' | '13' | '22' | '31' | '41' | '42';
+
+export const DIAN_ID_TYPES: { code: DianIdType; label: string }[] = [
+  { code: '13', label: 'CC - Cédula de ciudadanía' },
+  { code: '22', label: 'CE - Cédula de extranjería' },
+  { code: '31', label: 'NIT' },
+  { code: '41', label: 'PP - Pasaporte' },
+  { code: '42', label: 'DE - Documento extranjero' },
+  { code: '11', label: 'RC - Registro civil' },
+  { code: '12', label: 'TI - Tarjeta de identidad' },
+];
 
 export interface Client {
   id: string;
@@ -50,6 +68,8 @@ export interface Client {
   longitude: string | null;
   loyalty_points: number;
   is_active: boolean;
+  dian_id_type: DianIdType | null;
+  electronic_invoicing_enabled: boolean;
   prices: ClientPrice[];
   created_at: string;
 }
@@ -65,9 +85,9 @@ export interface LoyaltyTransaction {
 }
 
 export interface LoyaltyConfig {
-  gotas_per_paca: number;
-  gotas_per_botellon: number;
-  gotas_to_redeem_paca: number;
+  puntos_per_paca: number;
+  puntos_per_botellon: number;
+  puntos_to_redeem_paca: number;
 }
 
 export interface Bobina {
@@ -145,6 +165,12 @@ export interface Sale {
   notes: string | null;
   items: SaleItem[];
   created_at: string;
+  dian_document_number: string | null;
+  dian_cufe: string | null;
+  dian_status: string | null;
+  dian_status_message: string | null;
+  dian_external_ref: string | null;
+  dian_pdf_cached: boolean;
 }
 
 export interface Receivable {
@@ -204,6 +230,8 @@ export interface CompanySettings {
   phone: string | null;
   address: string | null;
   logo_url: string | null;
+  dian_facturador_url: string | null;
+  dian_facturador_api_key_masked: string | null;
 }
 
 export interface Expense {
