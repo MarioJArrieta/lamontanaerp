@@ -1,10 +1,11 @@
 import uuid
-from datetime import date, datetime, time
+from datetime import date
 
 from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config.timezone import bogota_day_bounds
 from app.domain.aggregates.sale import Sale
 from app.domain.enums import SaleStatus
 from app.infrastructure.repositories.base_repository import BaseRepository
@@ -50,8 +51,10 @@ class SaleRepository(BaseRepository[Sale]):
         return list(result.scalars().all())
 
     async def get_paid_on_date(self, target_date: date) -> list[Sale]:
-        start = datetime.combine(target_date, time.min)
-        end = datetime.combine(target_date, time.max)
+        # Cobros registrados hoy cuya venta NO se hizo hoy: excluye ventas
+        # creadas y cobradas el mismo dia para mostrar solo recaudo de credito
+        # / saldos previos. updated_at se compara en limites UTC del dia Bogota.
+        start, end = bogota_day_bounds(target_date)
         stmt = (
             select(Sale)
             .options(selectinload(Sale.items), selectinload(Sale.client))

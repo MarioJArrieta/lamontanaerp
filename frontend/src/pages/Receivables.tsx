@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { SubmitButton } from '@/components/ui/submit-button';
 import api from '@/lib/api';
-import { sv } from '@/lib/helpers';
+import { bogotaDaysAgo, bogotaToday, sv } from '@/lib/helpers';
 import type { Sale, Client, Employee } from '@/types';
 
 function formatMoney(val: string | number) {
@@ -31,8 +31,8 @@ export default function Receivables() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const today = new Date().toISOString().split('T')[0];
-  const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+  const today = bogotaToday();
+  const monthAgo = bogotaDaysAgo(30);
   const [filterFrom, setFilterFrom] = usePersistedState('receivables_from', monthAgo);
   const [filterTo, setFilterTo] = usePersistedState('receivables_to', today);
 
@@ -258,7 +258,7 @@ export default function Receivables() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <History className="w-5 h-5 text-green-600" />
-              Cobros registrados hoy
+              Cobros de hoy (ventas anteriores)
             </DialogTitle>
           </DialogHeader>
           {historyLoading ? (
