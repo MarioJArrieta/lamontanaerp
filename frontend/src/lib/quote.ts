@@ -1,5 +1,3 @@
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import type { Quote, Client, Product } from '@/types';
 
 interface CompanyInfo {
@@ -41,6 +39,11 @@ export async function generateQuote(
   productMap: Map<string, Product>,
   company: CompanyInfo | null,
 ) {
+  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ]);
+
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   let y = 15;

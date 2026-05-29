@@ -31,9 +31,12 @@ class SaleRepository(BaseRepository[Sale]):
     async def get_by_date_range(
         self, from_date: date, to_date: date, statuses: list[SaleStatus] | None = None
     ) -> list[Sale]:
+        # No selectinload(Sale.client): el response SaleResponse solo expone
+        # client_id; cargar el Client (y sus client_prices) por cada venta
+        # genera consultas IN (...) muy grandes que no se serializan.
         stmt = (
             select(Sale)
-            .options(selectinload(Sale.items), selectinload(Sale.client))
+            .options(selectinload(Sale.items))
             .where(Sale.date >= from_date, Sale.date <= to_date)
             .order_by(
                 case(
@@ -57,7 +60,7 @@ class SaleRepository(BaseRepository[Sale]):
         start, end = bogota_day_bounds(target_date)
         stmt = (
             select(Sale)
-            .options(selectinload(Sale.items), selectinload(Sale.client))
+            .options(selectinload(Sale.items))
             .where(
                 Sale.status.in_([SaleStatus.PAID, SaleStatus.PARTIAL]),
                 Sale.updated_at >= start,
@@ -72,7 +75,7 @@ class SaleRepository(BaseRepository[Sale]):
     async def get_pending_delivery(self) -> list[Sale]:
         stmt = (
             select(Sale)
-            .options(selectinload(Sale.items), selectinload(Sale.client))
+            .options(selectinload(Sale.items))
             .where(Sale.status.in_([SaleStatus.PENDING, SaleStatus.ASSIGNED]))
             .order_by(Sale.date)
         )

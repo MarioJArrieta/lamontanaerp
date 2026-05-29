@@ -1,4 +1,4 @@
-import jsPDF from 'jspdf';
+import type jsPDFType from 'jspdf';
 import type { Sale, Client, Product } from '@/types';
 
 interface CompanyInfo {
@@ -42,7 +42,7 @@ function bogotaNowFormatted(): string {
 
 /** Dibuja todo el contenido en `doc` empezando en MARGIN y devuelve la Y final. */
 function renderInvoice(
-  doc: jsPDF,
+  doc: jsPDFType,
   sale: Sale,
   client: Client | undefined,
   productMap: Map<string, Product>,
@@ -236,6 +236,8 @@ export async function generateInvoicePdf(
   if (company?.logo_url) {
     try { logoImg = await loadImage(company.logo_url); } catch { /* skip */ }
   }
+
+  const { default: jsPDF } = await import('jspdf');
 
   const measure = new jsPDF({ unit: 'mm', format: [PAPER_W, 500], orientation: 'portrait' });
   const finalY = renderInvoice(measure, sale, client, productMap, company, logoImg);
