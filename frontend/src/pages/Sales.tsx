@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import { toast } from 'sonner';
-import { Plus, ShoppingCart, FileText, Package, Trash2, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Cloud, Lock, Download } from 'lucide-react';
+import { Plus, ShoppingCart, FileText, Package, Trash2, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Cloud, Lock, Download, Printer } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,9 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { SubmitButton } from '@/components/ui/submit-button';
 import api from '@/lib/api';
-import { sv } from '@/lib/helpers';
+import { bogotaDaysAgo, bogotaToday, sv } from '@/lib/helpers';
 import type { Sale, Client, Product, Employee, CompanySettings } from '@/types';
-import { generateInvoice } from '@/lib/invoice';
+import { generateInvoicePdf, generateInvoiceHtml } from '@/lib/invoice';
 
 function formatMoney(val: string | number) {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(Number(val));
@@ -49,6 +49,8 @@ export default function Sales() {
   const [detailSale, setDetailSale] = useState<Sale | null>(null);
   const [invoiceSale, setInvoiceSale] = useState<Sale | null>(null);
   const [generatingElectronic, setGeneratingElectronic] = useState(false);
+  const [dianFormat, setDianFormat] = useState<'letter' | 'thermal'>('letter');
+  const [statsScope, setStatsScope] = useState<'today' | 'range'>('today');
   const [searchQuery, setSearchQuery] = usePersistedState('sales_search', '');
   const [page, setPage] = useState(1);
   const [sortCol, setSortCol] = useState<string | null>(null);
@@ -64,13 +66,14 @@ export default function Sales() {
     return sortDir === 'asc' ? <ArrowUp className="inline w-3 h-3 ml-1" /> : <ArrowDown className="inline w-3 h-3 ml-1" />;
   };
 
-  const today = new Date().toISOString().split('T')[0];
-  const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+  const today = bogotaToday();
+  const monthAgo = bogotaDaysAgo(30);
   const [filterFrom, setFilterFrom] = usePersistedState('sales_from', monthAgo);
   const [filterTo, setFilterTo] = usePersistedState('sales_to', today);
 
   const [form, setForm] = useState({
     date: today, client_id: '', delivery_employee_id: '', payment_type: 'cash', notes: '',
+    mark_paid: false, payment_method: 'cash',
     items: [{ product_id: '', quantity: '', unit_price: '' }],
   });
 
@@ -122,24 +125,32 @@ export default function Sales() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!form.client_id) { toast.error('Selecciona un cliente'); return; }
+    if (!form.delivery_employee_id) { toast.error('Selecciona un repartidor'); return; }
+    if (!form.items.length || form.items.some(i => !i.product_id || !i.quantity)) {
+      toast.error('Agrega al menos un producto con cantidad'); return;
+    }
     setSaving(true);
     try {
+      const isMarkPaid = form.mark_paid && form.payment_type === 'cash';
       await api.post('/sales', {
         date: form.date,
         client_id: form.client_id,
         delivery_employee_id: form.delivery_employee_id,
         payment_type: form.payment_type,
         notes: form.notes || null,
+        mark_paid: isMarkPaid,
+        payment_method: isMarkPaid ? form.payment_method : null,
         items: form.items.map(item => ({
           product_id: item.product_id,
           quantity: Number(item.quantity),
           unit_price: item.unit_price ? Number(item.unit_price) : null,
         })),
       });
-      toast.success('Venta creada');
+      toast.success(isMarkPaid ? 'Venta creada y cobrada' : 'Venta creada');
       setOpen(false);
       setClientSearch('');
-      setForm({ date: today, client_id: '', delivery_employee_id: '', payment_type: 'cash', notes: '', items: [{ product_id: '', quantity: '', unit_price: '' }] });
+      setForm({ date: today, client_id: '', delivery_employee_id: '', payment_type: 'cash', notes: '', mark_paid: false, payment_method: 'cash', items: [{ product_id: '', quantity: '', unit_price: '' }] });
       fetchData();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
@@ -211,7 +222,17 @@ export default function Sales() {
   const handleInternalInvoice = async () => {
     if (!invoiceSale) return;
     try {
-      await generateInvoice(invoiceSale, clientMap.get(invoiceSale.client_id), productMap, company);
+      await generateInvoicePdf(invoiceSale, clientMap.get(invoiceSale.client_id), productMap, company);
+      setInvoiceSale(null);
+    } catch {
+      toast.error('Error al generar factura');
+    }
+  };
+
+  const handleInternalInvoiceHtml = async () => {
+    if (!invoiceSale) return;
+    try {
+      await generateInvoiceHtml(invoiceSale, clientMap.get(invoiceSale.client_id), productMap, company);
       setInvoiceSale(null);
     } catch {
       toast.error('Error al generar factura');
@@ -244,14 +265,18 @@ export default function Sales() {
     }
   };
 
-  const downloadDianPdf = async (saleId: string, docNumber?: string | null) => {
+  const downloadDianPdf = async (saleId: string, docNumber?: string | null, format: 'letter' | 'thermal' = 'letter') => {
     try {
-      const res = await api.get(`/sales/${saleId}/electronic-invoice/pdf`, { responseType: 'blob' });
+      const res = await api.get(`/sales/${saleId}/electronic-invoice/pdf`, {
+        responseType: 'blob',
+        params: { format },
+      });
       const blob = new Blob([res.data], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${docNumber || 'factura'}.pdf`;
+      const suffix = format === 'thermal' ? '-80mm' : '';
+      a.download = `${docNumber || 'factura'}${suffix}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -304,13 +329,18 @@ export default function Sales() {
     });
   }, [filteredSales, sortCol, sortDir, clientMap, employees]);
 
-  const paidSales = filteredSales.filter(s => s.status === 'paid');
-  const pendingSales = filteredSales.filter(s => s.status === 'pending');
-  const paidTotal = paidSales.reduce((sum, s) => sum + Number(s.total), 0);
-  const pendingTotal = pendingSales.reduce((sum, s) => sum + Number(s.total), 0);
+  const statsSales = useMemo(() => {
+    if (statsScope === 'today') return filteredSales.filter(s => s.date === today);
+    return filteredSales;
+  }, [filteredSales, statsScope, today]);
+
+  const paidSales = statsSales.filter(s => s.status === 'paid' || s.status === 'partial');
+  const pendingSales = statsSales.filter(s => s.status !== 'paid');
+  const paidTotal = statsSales.reduce((sum, s) => sum + Number(s.paid_amount || 0), 0);
+  const pendingTotal = statsSales.reduce((sum, s) => sum + Number(s.balance || 0), 0);
 
   const itemsSold = new Map<string, number>();
-  for (const s of filteredSales) {
+  for (const s of statsSales) {
     for (const item of (s.items || [])) {
       itemsSold.set(item.product_id, (itemsSold.get(item.product_id) || 0) + item.quantity);
     }
@@ -373,7 +403,7 @@ export default function Sales() {
                   </div>
                   <div className="space-y-2">
                     <Label>Tipo de pago</Label>
-                    <Select value={form.payment_type} onValueChange={v => setForm({...form, payment_type: sv(v)})}>
+                    <Select value={form.payment_type} onValueChange={v => setForm({...form, payment_type: sv(v), mark_paid: sv(v) === 'credit' ? false : form.mark_paid})}>
                       <SelectTrigger><SelectValue>{(v: string) => paymentLabel[v] || v}</SelectValue></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="cash">Contado</SelectItem>
@@ -382,6 +412,42 @@ export default function Sales() {
                     </Select>
                   </div>
                 </div>
+
+                {form.payment_type === 'cash' && (
+                  <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="cursor-pointer">Cobrado</Label>
+                        <p className="text-xs text-muted-foreground">Marca la venta como pagada al instante</p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={form.mark_paid}
+                        onClick={() => setForm({ ...form, mark_paid: !form.mark_paid })}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${form.mark_paid ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition-transform ${form.mark_paid ? 'translate-x-5' : 'translate-x-0'}`}
+                        />
+                      </button>
+                    </div>
+                    {form.mark_paid && (
+                      <div className="space-y-2">
+                        <Label>Medio de pago</Label>
+                        <Select value={form.payment_method} onValueChange={v => setForm({...form, payment_method: sv(v)})}>
+                          <SelectTrigger><SelectValue>{(v: string) => methodLabel[v] || v}</SelectValue></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="cash">Efectivo</SelectItem>
+                            <SelectItem value="transfer">Transferencia</SelectItem>
+                            <SelectItem value="nequi">Nequi</SelectItem>
+                            <SelectItem value="daviplata">Daviplata</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -484,6 +550,32 @@ export default function Sales() {
         </div>
       </div>
 
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Resumen {statsScope === 'today' ? 'de hoy' : 'del rango filtrado'}
+        </p>
+        <div className="inline-flex rounded-md border bg-muted/30 p-0.5 text-xs">
+          <button
+            type="button"
+            onClick={() => setStatsScope('today')}
+            className={`px-2.5 py-1 rounded-sm font-medium transition-colors ${
+              statsScope === 'today' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Hoy
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatsScope('range')}
+            className={`px-2.5 py-1 rounded-sm font-medium transition-colors ${
+              statsScope === 'range' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Rango
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-4 gap-2 mb-6">
         <Card>
           <CardContent className="px-2.5 py-2">
@@ -494,7 +586,7 @@ export default function Sales() {
               {Object.entries(
                 paidSales.reduce<Record<string, number>>((acc, s) => {
                   const m = s.payment_method || 'sin_metodo';
-                  acc[m] = (acc[m] || 0) + Number(s.total);
+                  acc[m] = (acc[m] || 0) + Number(s.paid_amount || 0);
                   return acc;
                 }, {})
               ).map(([method, total]) => (
@@ -516,7 +608,7 @@ export default function Sales() {
           <CardContent className="px-2.5 py-2">
             <p className="text-[10px] text-muted-foreground">Total</p>
             <p className="text-sm font-bold truncate">{formatMoney(paidTotal + pendingTotal)}</p>
-            <p className="text-[10px] text-muted-foreground">{sales.length} ventas</p>
+            <p className="text-[10px] text-muted-foreground">{statsSales.length} ventas</p>
           </CardContent>
         </Card>
         <Card>
@@ -716,13 +808,40 @@ export default function Sales() {
                         )}
                       </div>
                     </div>
-                    <Button
-                      type="button"
-                      className="w-full bg-emerald-600 hover:bg-emerald-700"
-                      onClick={() => downloadDianPdf(invoiceSale.id, invoiceSale.dian_document_number)}
-                    >
-                      <Download className="w-4 h-4 mr-2" />Descargar PDF DIAN
-                    </Button>
+                    <div className="space-y-2">
+                      <div className="rounded-lg border p-2 flex items-center gap-1 bg-muted/30">
+                        <button
+                          type="button"
+                          onClick={() => setDianFormat('letter')}
+                          className={`flex-1 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                            dianFormat === 'letter'
+                              ? 'bg-emerald-600 text-white shadow-sm'
+                              : 'text-muted-foreground hover:bg-muted'
+                          }`}
+                        >
+                          Carta (A4)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDianFormat('thermal')}
+                          className={`flex-1 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                            dianFormat === 'thermal'
+                              ? 'bg-emerald-600 text-white shadow-sm'
+                              : 'text-muted-foreground hover:bg-muted'
+                          }`}
+                        >
+                          Térmica 80mm
+                        </button>
+                      </div>
+                      <Button
+                        type="button"
+                        className="w-full bg-emerald-600 hover:bg-emerald-700"
+                        onClick={() => downloadDianPdf(invoiceSale.id, invoiceSale.dian_document_number, dianFormat)}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Descargar PDF DIAN {dianFormat === 'thermal' ? '(80mm)' : '(Carta)'}
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <>
@@ -736,7 +855,21 @@ export default function Sales() {
                       </div>
                       <div className="flex-1">
                         <p className="font-semibold text-sm">Factura interna (PDF)</p>
-                        <p className="text-xs text-muted-foreground">Genera el PDF local para el cliente. No se envía a la DIAN.</p>
+                        <p className="text-xs text-muted-foreground">Descarga el PDF para guardar o imprimir despues.</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleInternalInvoiceHtml}
+                      className="w-full text-left rounded-lg border bg-white p-4 hover:border-amber-500 hover:bg-amber-50/50 transition-colors flex items-start gap-3"
+                    >
+                      <div className="rounded-md bg-amber-100 p-2">
+                        <Printer className="w-5 h-5 text-amber-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm">Factura interna (HTML - imprimir)</p>
+                        <p className="text-xs text-muted-foreground">Abre en pestaña con tamano 80mm y dialogo de impresion directo.</p>
                       </div>
                     </button>
 
