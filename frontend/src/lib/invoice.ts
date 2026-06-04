@@ -308,7 +308,8 @@ function buildInvoiceHtml(
   body {
     width: 76mm; margin: 0 auto;
     font-family: 'Courier New', 'Consolas', monospace;
-    font-size: 11px; line-height: 1.3; color: #000;
+    font-size: 12px; line-height: 1.3; color: #000;
+    font-weight: bold;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
   .center { text-align: center; }
