@@ -1,8 +1,11 @@
+import asyncio
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from app.api.v1.auth_router import router as auth_router
 from app.api.v1.bobina_router import router as bobina_router
@@ -196,5 +199,19 @@ app.include_router(quote_router, prefix="/api/v1")
 
 
 @app.get("/health")
-async def health():
-    return {"status": "ok", "app": settings.app_name}
+async def health() -> Response:
+    # Verifica conectividad real con la DB para que Fly no reporte "healthy"
+    # cuando la base de datos esta caida. Timeout corto para no exceder el
+    # timeout del healthcheck de Fly (5s).
+    try:
+        async with engine.connect() as conn:
+            await asyncio.wait_for(conn.execute(text("SELECT 1")), timeout=3.0)
+    except Exception:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "error", "app": settings.app_name, "db": "unreachable"},
+        )
+    return JSONResponse(
+        status_code=200,
+        content={"status": "ok", "app": settings.app_name, "db": "ok"},
+    )
