@@ -66,7 +66,12 @@ class SaleService:
         items: list[dict],
         payment_type: PaymentType,
         notes: str | None = None,
+        mark_paid: bool = False,
+        payment_method: PaymentMethod | None = None,
     ) -> Sale:
+        if mark_paid and payment_method is None:
+            raise ValueError("Se requiere el medio de pago para cobrar la venta")
+
         # Validate client
         client = await self.client_repo.get_by_id_with_prices(client_id)
         if not client:
@@ -177,6 +182,7 @@ class SaleService:
         )
 
         # If credit sale, create receivable
+        receivable: Receivable | None = None
         if payment_type == PaymentType.CREDIT:
             settings = get_settings()
             receivable = Receivable(
@@ -187,6 +193,19 @@ class SaleService:
                 status=ReceivableStatus.PENDING,
             )
             self.session.add(receivable)
+            await self.session.flush()
+
+        # Cobrar la venta al momento de crearla (mismo efecto que mark_paid)
+        if mark_paid and payment_method is not None:
+            sale.paid_amount = sale.total
+            sale.payment_method = payment_method
+            sale.status = SaleStatus.PAID
+            # La entrega queda completada al cobrar
+            delivery.status = DeliveryStatus.DELIVERED
+            # Si era a credito, liquidar la cuenta por cobrar recien creada
+            if receivable is not None:
+                receivable.status = ReceivableStatus.PAID
+                receivable.paid_date = date.today()
             await self.session.flush()
 
         return sale

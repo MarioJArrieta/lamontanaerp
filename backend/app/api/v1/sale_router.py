@@ -74,6 +74,8 @@ async def create_sale(
             items=[item.model_dump() for item in body.items],
             payment_type=body.payment_type,
             notes=body.notes,
+            mark_paid=body.mark_paid,
+            payment_method=body.payment_method,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

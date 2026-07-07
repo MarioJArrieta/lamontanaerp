@@ -350,6 +350,8 @@ class SaleCreate(BaseModel):
     items: list[SaleItemCreate]
     payment_type: PaymentType
     notes: str | None = None
+    mark_paid: bool = False  # Cobrar la venta al momento de crearla
+    payment_method: PaymentMethod | None = None  # Requerido si mark_paid
 
 
 class SaleResponse(BaseModel):
