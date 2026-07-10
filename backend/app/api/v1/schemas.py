@@ -399,6 +399,23 @@ class SaleMarkPaid(BaseModel):
     amount: Decimal | None = None  # None = pago total del saldo restante
 
 
+class SaleBulkPay(BaseModel):
+    sale_ids: list[uuid.UUID] = Field(..., min_length=1)
+    payment_method: PaymentMethod
+
+
+class SaleBulkPaySkipped(BaseModel):
+    sale_id: uuid.UUID
+    reason: str
+
+
+class SaleBulkPayResponse(BaseModel):
+    paid: list[SaleResponse] = []
+    skipped: list[SaleBulkPaySkipped] = []
+    count_paid: int = 0
+    total_collected: Decimal = Decimal("0")
+
+
 class SaleDeleteConfirm(BaseModel):
     admin_password: str
 

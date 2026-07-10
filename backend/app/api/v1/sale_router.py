@@ -6,7 +6,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.schemas import SaleAssignDelivery, SaleCreate, SaleDeleteConfirm, SaleMarkPaid, SaleResponse, SaleUpdate
+from app.api.v1.schemas import (
+    SaleAssignDelivery,
+    SaleBulkPay,
+    SaleBulkPayResponse,
+    SaleBulkPaySkipped,
+    SaleCreate,
+    SaleDeleteConfirm,
+    SaleMarkPaid,
+    SaleResponse,
+    SaleUpdate,
+)
 from app.application.services.electronic_invoice_service import (
     ElectronicInvoiceError,
     ElectronicInvoiceService,
@@ -122,6 +132,26 @@ async def mark_paid(
         return await service.mark_paid(sale_id, body.payment_method, body.amount)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/bulk-pay", response_model=SaleBulkPayResponse)
+async def bulk_mark_paid(
+    body: SaleBulkPay,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[User, Depends(require_role(UserRole.ADMIN, UserRole.SECRETARY, UserRole.DELIVERY))],
+):
+    """Cobro masivo: liquida en su totalidad cada venta seleccionada con un
+    mismo metodo de pago. Las ventas ya pagadas o invalidas se omiten."""
+    service = SaleService(db)
+    paid, skipped, total_collected = await service.bulk_mark_paid(
+        body.sale_ids, body.payment_method
+    )
+    return SaleBulkPayResponse(
+        paid=[SaleResponse.model_validate(s) for s in paid],
+        skipped=[SaleBulkPaySkipped(sale_id=sid, reason=reason) for sid, reason in skipped],
+        count_paid=len(paid),
+        total_collected=total_collected,
+    )
 
 
 @router.post("/{sale_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
