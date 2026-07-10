@@ -115,6 +115,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             "ALTER TABLE clients ADD COLUMN IF NOT EXISTS dian_id_type VARCHAR(5)"
         ))
         await conn.execute(text(
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS dian_dv VARCHAR(1)"
+        ))
+        await conn.execute(text(
             "ALTER TABLE products ADD COLUMN IF NOT EXISTS "
             "tax_rate NUMERIC(5,2) NOT NULL DEFAULT 0"
         ))

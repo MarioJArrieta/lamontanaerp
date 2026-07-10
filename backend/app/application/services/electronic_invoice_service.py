@@ -56,6 +56,11 @@ class ElectronicInvoiceService:
             raise ElectronicInvoiceError(
                 "El cliente no tiene habilitada la factura electronica"
             )
+        if client.dian_id_type == "31" and not (client.dian_dv or "").strip():
+            raise ElectronicInvoiceError(
+                "El cliente es NIT pero no tiene digito de verificacion (DV). "
+                "Editalo y agrega el DV antes de facturar."
+            )
 
         # Build lines payload
         lines: list[dict] = []
@@ -86,6 +91,7 @@ class ElectronicInvoiceService:
             "customer": {
                 "id_type": client.dian_id_type,
                 "id_number": client.cedula_nit,
+                "dv": client.dian_dv,
                 "name": client.name,
                 "email": client.email,
                 "address": client.address,
@@ -124,7 +130,23 @@ class ElectronicInvoiceService:
         sale.dian_document_number = data.get("document_number")
         sale.dian_cufe = data.get("cufe")
         sale.dian_status = data.get("status")
-        sale.dian_status_message = data.get("dian_status_message")
+        sale.dian_status_message = (
+            data.get("dian_status_message") or data.get("status_message")
+        )
+
+        # The facturador answers HTTP 200 even when DIAN rejects the document.
+        # Treat anything that is not "accepted" as a failure so the ERP does not
+        # show a success and leave the user waiting for an invoice that never came.
+        if sale.dian_status != "accepted":
+            # Persist the rejection reason on the sale before surfacing the error,
+            # so it stays queryable and re-sending is possible after fixing data.
+            await self.session.flush()
+            await self.session.commit()
+            reason = sale.dian_status_message or "sin detalle"
+            raise ElectronicInvoiceError(
+                f"La DIAN no acepto la factura (estado: {sale.dian_status or 'desconocido'}). "
+                f"Motivo: {reason}"
+            )
 
         # If accepted, fetch and cache the PDF immediately so it survives even
         # if the facturador goes down later. The cache also blocks re-sending.

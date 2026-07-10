@@ -49,19 +49,20 @@ export default function Clients() {
     client_type: string;
     cedula_nit: string;
     dian_id_type: DianIdType | '';
+    dian_dv: string;
     address: string;
     delivery_zone: string;
     phone: string;
     email: string;
     electronic_invoicing_enabled: boolean;
   }>({
-    name: '', client_type: 'person', cedula_nit: '', dian_id_type: '',
+    name: '', client_type: 'person', cedula_nit: '', dian_id_type: '', dian_dv: '',
     address: '', delivery_zone: '', phone: '', email: '',
     electronic_invoicing_enabled: false,
   });
 
   const emptyForm = {
-    name: '', client_type: 'person', cedula_nit: '', dian_id_type: '' as DianIdType | '',
+    name: '', client_type: 'person', cedula_nit: '', dian_id_type: '' as DianIdType | '', dian_dv: '',
     address: '', delivery_zone: '', phone: '', email: '',
     electronic_invoicing_enabled: false,
   };
@@ -83,12 +84,17 @@ export default function Clients() {
       toast.error('Selecciona el tipo de documento');
       return;
     }
+    if (form.dian_id_type === '31' && !form.dian_dv.trim()) {
+      toast.error('El dígito de verificación (DV) es obligatorio para NIT');
+      return;
+    }
     setSaving(true);
     const payload = {
       name: form.name,
       client_type: form.client_type,
       cedula_nit: form.cedula_nit,
       dian_id_type: form.dian_id_type,
+      dian_dv: form.dian_id_type === '31' ? form.dian_dv.trim() : null,
       address: form.address || null,
       delivery_zone: form.delivery_zone || null,
       phone: form.phone || null,
@@ -125,6 +131,7 @@ export default function Clients() {
     setForm({
       name: c.name, client_type: c.client_type, cedula_nit: c.cedula_nit,
       dian_id_type: c.dian_id_type || '',
+      dian_dv: c.dian_dv || '',
       address: c.address || '', delivery_zone: c.delivery_zone || '',
       phone: c.phone || '', email: c.email || '',
       electronic_invoicing_enabled: c.electronic_invoicing_enabled ?? false,
@@ -306,6 +313,22 @@ export default function Clients() {
                     <Input value={form.cedula_nit} onChange={e => setForm({...form, cedula_nit: e.target.value})} required />
                   </div>
                 </div>
+                {form.dian_id_type === '31' && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Dígito de verificación (DV) <span className="text-red-500">*</span></Label>
+                      <Input
+                        value={form.dian_dv}
+                        onChange={e => setForm({ ...form, dian_dv: e.target.value.replace(/[^0-9]/g, '').slice(0, 1) })}
+                        inputMode="numeric"
+                        maxLength={1}
+                        placeholder="Ej: 4"
+                        required
+                      />
+                      <p className="text-xs text-muted-foreground">Último dígito del NIT, requerido por la DIAN.</p>
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Direccion</Label>

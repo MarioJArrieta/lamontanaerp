@@ -69,6 +69,7 @@ export interface Client {
   loyalty_points: number;
   is_active: boolean;
   dian_id_type: DianIdType | null;
+  dian_dv: string | null;
   electronic_invoicing_enabled: boolean;
   prices: ClientPrice[];
   created_at: string;

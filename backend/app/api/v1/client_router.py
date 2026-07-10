@@ -59,6 +59,7 @@ async def create_client(
             client_type=body.client_type,
             cedula_nit=body.cedula_nit,
             dian_id_type=body.dian_id_type,
+            dian_dv=body.dian_dv,
             address=body.address,
             delivery_zone=body.delivery_zone,
             phone=body.phone,
