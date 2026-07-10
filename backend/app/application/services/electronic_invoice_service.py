@@ -183,8 +183,14 @@ class ElectronicInvoiceService:
         path.write_bytes(content)
         return str(path)
 
-    async def download_pdf(self, sale_id: uuid.UUID) -> tuple[bytes, str]:
-        """Return the signed PDF for a sale's DIAN invoice. Uses local cache when present."""
+    async def download_pdf(
+        self, sale_id: uuid.UUID, fmt: str = "letter"
+    ) -> tuple[bytes, str]:
+        """Return the signed PDF for a sale's DIAN invoice.
+
+        fmt: "letter" (carta/A4) or "thermal" (80mm receipt). The local cache only
+        holds the letter version; the thermal one is always fetched on demand.
+        """
         sale = await self.sale_repo.get_by_id_with_items(sale_id)
         if not sale:
             raise ElectronicInvoiceError("Venta no encontrada")
@@ -193,9 +199,12 @@ class ElectronicInvoiceService:
         if not sale.dian_external_ref:
             raise ElectronicInvoiceError("La venta no tiene referencia DIAN")
 
-        filename = f"{sale.dian_document_number or 'factura'}.pdf"
+        is_thermal = fmt == "thermal"
+        suffix = "-80mm" if is_thermal else ""
+        filename = f"{sale.dian_document_number or 'factura'}{suffix}.pdf"
 
-        if sale.dian_pdf_path:
+        # The disk cache only stores the letter format; never serve it for thermal.
+        if not is_thermal and sale.dian_pdf_path:
             cached = Path(sale.dian_pdf_path)
             if cached.exists():
                 return cached.read_bytes(), filename
@@ -225,6 +234,7 @@ class ElectronicInvoiceService:
                 pdf_resp = await http.get(
                     f"{base}/erp/v1/invoices/{invoice_id}/pdf",
                     headers=headers,
+                    params={"format": fmt},
                 )
         except httpx.RequestError as e:
             raise ElectronicInvoiceError(f"No se pudo contactar al facturador DIAN: {e}")
@@ -234,7 +244,9 @@ class ElectronicInvoiceService:
                 f"Facturador respondio {pdf_resp.status_code} al descargar el PDF"
             )
 
-        sale.dian_pdf_path = self._save_pdf_to_disk(sale.id, pdf_resp.content)
-        await self.session.flush()
-        await self.session.commit()
+        # Only the letter version is cached to disk (it is the canonical archive copy).
+        if not is_thermal:
+            sale.dian_pdf_path = self._save_pdf_to_disk(sale.id, pdf_resp.content)
+            await self.session.flush()
+            await self.session.commit()
         return pdf_resp.content, filename
