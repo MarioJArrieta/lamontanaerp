@@ -241,6 +241,16 @@ class SaleService:
         sale = await self.sale_repo.get_by_id_with_items(sale_id)
         if not sale:
             raise ValueError("Sale not found")
+        await self._apply_payment(sale, payment_method, amount)
+        return sale
+
+    async def _apply_payment(
+        self, sale: Sale, payment_method: PaymentMethod,
+        amount: Decimal | None = None,
+    ) -> Decimal:
+        """Liquida un pago sobre una venta ya cargada y ejecuta la cascada
+        (delivery -> delivered, receivable -> paid). Devuelve el monto cobrado.
+        amount=None cobra el saldo completo."""
         if sale.status == SaleStatus.PAID:
             raise ValueError("Sale is already paid")
 
@@ -264,20 +274,45 @@ class SaleService:
 
         if sale.status == SaleStatus.PAID:
             # Mark delivery as delivered
-            delivery = await self._get_delivery_by_sale(sale_id)
+            delivery = await self._get_delivery_by_sale(sale.id)
             if delivery and delivery.status != DeliveryStatus.DELIVERED:
                 delivery.status = DeliveryStatus.DELIVERED
                 await self.session.flush()
 
             # If credit sale, mark receivable as paid
             if sale.payment_type == PaymentType.CREDIT:
-                receivable = await self.receivable_repo.get_by_sale(sale_id)
+                receivable = await self.receivable_repo.get_by_sale(sale.id)
                 if receivable:
                     receivable.status = ReceivableStatus.PAID
                     receivable.paid_date = date.today()
                     await self.session.flush()
 
-        return sale
+        return pay_amount
+
+    async def bulk_mark_paid(
+        self, sale_ids: list[uuid.UUID], payment_method: PaymentMethod,
+    ) -> tuple[list[Sale], list[tuple[uuid.UUID, str]], Decimal]:
+        """Cobra en su totalidad cada venta seleccionada con un mismo metodo de
+        pago. Las ventas ya pagadas o invalidas se omiten (no rompen el lote).
+        Todo corre en el mismo request => atomico via el commit de get_db.
+        Devuelve (ventas_cobradas, omitidas[(id, motivo)], total_recaudado)."""
+        paid: list[Sale] = []
+        skipped: list[tuple[uuid.UUID, str]] = []
+        total_collected = Decimal("0")
+        # Dedup preservando orden por si el front manda ids repetidos.
+        for sale_id in dict.fromkeys(sale_ids):
+            sale = await self.sale_repo.get_by_id_with_items(sale_id)
+            if not sale:
+                skipped.append((sale_id, "Venta no encontrada"))
+                continue
+            try:
+                collected = await self._apply_payment(sale, payment_method, None)
+            except ValueError as e:
+                skipped.append((sale_id, str(e)))
+                continue
+            paid.append(sale)
+            total_collected += collected
+        return paid, skipped, total_collected
 
     async def _get_delivery_by_sale(self, sale_id: uuid.UUID) -> Delivery | None:
         stmt = select(Delivery).where(Delivery.sale_id == sale_id)
