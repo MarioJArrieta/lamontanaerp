@@ -163,10 +163,11 @@ async def download_electronic_invoice_pdf(
     sale_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
     _: AdminOrSecretary,
+    format: str = Query(default="letter", description="letter (carta) or thermal (80mm)"),
 ):
     service = ElectronicInvoiceService(db)
     try:
-        content, filename = await service.download_pdf(sale_id)
+        content, filename = await service.download_pdf(sale_id, format)
     except ElectronicInvoiceError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return Response(

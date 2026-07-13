@@ -30,6 +30,8 @@ class Client(Base):
     is_active: Mapped[bool] = mapped_column(default=True)
     electronic_invoicing_enabled: Mapped[bool] = mapped_column(default=False, nullable=False)
     dian_id_type: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
+    # Dígito de verificación (DV), only meaningful when dian_id_type == "31" (NIT)
+    dian_dv: Mapped[Optional[str]] = mapped_column(String(1), nullable=True)
 
     prices: Mapped[list["ClientPrice"]] = relationship(
         back_populates="client", cascade="all, delete-orphan"

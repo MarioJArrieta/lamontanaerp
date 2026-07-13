@@ -56,6 +56,11 @@ class ElectronicInvoiceService:
             raise ElectronicInvoiceError(
                 "El cliente no tiene habilitada la factura electronica"
             )
+        if client.dian_id_type == "31" and not (client.dian_dv or "").strip():
+            raise ElectronicInvoiceError(
+                "El cliente es NIT pero no tiene digito de verificacion (DV). "
+                "Editalo y agrega el DV antes de facturar."
+            )
 
         # Build lines payload
         lines: list[dict] = []
@@ -86,6 +91,7 @@ class ElectronicInvoiceService:
             "customer": {
                 "id_type": client.dian_id_type,
                 "id_number": client.cedula_nit,
+                "dv": client.dian_dv,
                 "name": client.name,
                 "email": client.email,
                 "address": client.address,
@@ -124,7 +130,23 @@ class ElectronicInvoiceService:
         sale.dian_document_number = data.get("document_number")
         sale.dian_cufe = data.get("cufe")
         sale.dian_status = data.get("status")
-        sale.dian_status_message = data.get("dian_status_message")
+        sale.dian_status_message = (
+            data.get("dian_status_message") or data.get("status_message")
+        )
+
+        # The facturador answers HTTP 200 even when DIAN rejects the document.
+        # Treat anything that is not "accepted" as a failure so the ERP does not
+        # show a success and leave the user waiting for an invoice that never came.
+        if sale.dian_status != "accepted":
+            # Persist the rejection reason on the sale before surfacing the error,
+            # so it stays queryable and re-sending is possible after fixing data.
+            await self.session.flush()
+            await self.session.commit()
+            reason = sale.dian_status_message or "sin detalle"
+            raise ElectronicInvoiceError(
+                f"La DIAN no acepto la factura (estado: {sale.dian_status or 'desconocido'}). "
+                f"Motivo: {reason}"
+            )
 
         # If accepted, fetch and cache the PDF immediately so it survives even
         # if the facturador goes down later. The cache also blocks re-sending.
@@ -161,8 +183,14 @@ class ElectronicInvoiceService:
         path.write_bytes(content)
         return str(path)
 
-    async def download_pdf(self, sale_id: uuid.UUID) -> tuple[bytes, str]:
-        """Return the signed PDF for a sale's DIAN invoice. Uses local cache when present."""
+    async def download_pdf(
+        self, sale_id: uuid.UUID, fmt: str = "letter"
+    ) -> tuple[bytes, str]:
+        """Return the signed PDF for a sale's DIAN invoice.
+
+        fmt: "letter" (carta/A4) or "thermal" (80mm receipt). The local cache only
+        holds the letter version; the thermal one is always fetched on demand.
+        """
         sale = await self.sale_repo.get_by_id_with_items(sale_id)
         if not sale:
             raise ElectronicInvoiceError("Venta no encontrada")
@@ -171,9 +199,12 @@ class ElectronicInvoiceService:
         if not sale.dian_external_ref:
             raise ElectronicInvoiceError("La venta no tiene referencia DIAN")
 
-        filename = f"{sale.dian_document_number or 'factura'}.pdf"
+        is_thermal = fmt == "thermal"
+        suffix = "-80mm" if is_thermal else ""
+        filename = f"{sale.dian_document_number or 'factura'}{suffix}.pdf"
 
-        if sale.dian_pdf_path:
+        # The disk cache only stores the letter format; never serve it for thermal.
+        if not is_thermal and sale.dian_pdf_path:
             cached = Path(sale.dian_pdf_path)
             if cached.exists():
                 return cached.read_bytes(), filename
@@ -203,6 +234,7 @@ class ElectronicInvoiceService:
                 pdf_resp = await http.get(
                     f"{base}/erp/v1/invoices/{invoice_id}/pdf",
                     headers=headers,
+                    params={"format": fmt},
                 )
         except httpx.RequestError as e:
             raise ElectronicInvoiceError(f"No se pudo contactar al facturador DIAN: {e}")
@@ -212,7 +244,9 @@ class ElectronicInvoiceService:
                 f"Facturador respondio {pdf_resp.status_code} al descargar el PDF"
             )
 
-        sale.dian_pdf_path = self._save_pdf_to_disk(sale.id, pdf_resp.content)
-        await self.session.flush()
-        await self.session.commit()
+        # Only the letter version is cached to disk (it is the canonical archive copy).
+        if not is_thermal:
+            sale.dian_pdf_path = self._save_pdf_to_disk(sale.id, pdf_resp.content)
+            await self.session.flush()
+            await self.session.commit()
         return pdf_resp.content, filename

@@ -143,11 +143,18 @@ class ClientCreate(BaseModel):
     client_type: ClientType
     cedula_nit: str
     dian_id_type: str
+    dian_dv: str | None = None
     address: str | None = None
     delivery_zone: str | None = None
     phone: str | None = None
     email: str | None = None
     electronic_invoicing_enabled: bool = False
+
+    @model_validator(mode="after")
+    def _require_dv_for_nit(self) -> "ClientCreate":
+        if self.dian_id_type == "31" and not (self.dian_dv or "").strip():
+            raise ValueError("El dígito de verificación (DV) es obligatorio para NIT")
+        return self
 
 
 class ClientUpdate(BaseModel):
@@ -155,6 +162,7 @@ class ClientUpdate(BaseModel):
     client_type: ClientType | None = None
     cedula_nit: str | None = None
     dian_id_type: str | None = None
+    dian_dv: str | None = None
     address: str | None = None
     delivery_zone: str | None = None
     phone: str | None = None
@@ -172,6 +180,7 @@ class ClientCreateResponse(BaseModel):
     client_type: ClientType
     cedula_nit: str
     dian_id_type: str | None = None
+    dian_dv: str | None = None
     electronic_invoicing_enabled: bool = False
     address: str | None
     delivery_zone: str | None
@@ -211,6 +220,7 @@ class ClientResponse(BaseModel):
     client_type: ClientType
     cedula_nit: str
     dian_id_type: str | None = None
+    dian_dv: str | None = None
     electronic_invoicing_enabled: bool = False
     address: str | None
     delivery_zone: str | None
