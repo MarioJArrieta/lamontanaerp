@@ -368,6 +368,7 @@ export default function Receivables() {
                     <TableHead>Cobrado</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead>Medio</TableHead>
+                    <TableHead className="text-right">Detalle</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -382,6 +383,11 @@ export default function Receivables() {
                         </Badge>
                       </TableCell>
                       <TableCell>{s.payment_method ? methodLabel[s.payment_method] || s.payment_method : '-'}</TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="outline" onClick={() => { setHistoryOpen(false); openDetail(s); }}>
+                          <Eye className="w-4 h-4 mr-1" />Ver detalle
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
