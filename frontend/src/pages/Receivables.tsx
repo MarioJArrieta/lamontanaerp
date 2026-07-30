@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, type FormEvent } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { toast } from 'sonner';
-import { CheckCircle, DollarSign, AlertTriangle, Clock, Search, ArrowUpDown, ArrowUp, ArrowDown, History } from 'lucide-react';
+import { CheckCircle, DollarSign, AlertTriangle, Clock, Search, ArrowUpDown, ArrowUp, ArrowDown, History, Eye, Package, FileText } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import StatCard from '@/components/shared/StatCard';
@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { SubmitButton } from '@/components/ui/submit-button';
 import api from '@/lib/api';
 import { bogotaDaysAgo, bogotaToday, sv } from '@/lib/helpers';
-import type { Sale, Client, Employee } from '@/types';
+import type { Sale, Client, Employee, Product } from '@/types';
 
 function formatMoney(val: string | number) {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(Number(val));
@@ -29,6 +29,7 @@ export default function Receivables() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
   const today = bogotaToday();
@@ -45,6 +46,8 @@ export default function Receivables() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyData, setHistoryData] = useState<Sale[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailSale, setDetailSale] = useState<Sale | null>(null);
 
   const fetchData = () => {
     setLoading(true);
@@ -52,10 +55,12 @@ export default function Receivables() {
       api.get(`/sales?from_date=${filterFrom}&to_date=${filterTo}&status=pending,partial`),
       api.get('/clients'),
       api.get('/employees'),
-    ]).then(([salesRes, clientsRes, empRes]) => {
+      api.get('/products'),
+    ]).then(([salesRes, clientsRes, empRes, prodRes]) => {
       setSales(salesRes.data);
       setClients(clientsRes.data);
       setEmployees(empRes.data);
+      setProducts(prodRes.data);
     }).finally(() => setLoading(false));
   };
   useEffect(fetchData, [filterFrom, filterTo]);
@@ -71,6 +76,11 @@ export default function Receivables() {
     } finally {
       setHistoryLoading(false);
     }
+  };
+
+  const openDetail = (sale: Sale) => {
+    setDetailSale(sale);
+    setDetailOpen(true);
   };
 
   const openPayDialog = (saleId: string) => {
@@ -103,6 +113,7 @@ export default function Receivables() {
   };
 
   const clientMap = new Map(clients.map(c => [c.id, c]));
+  const productMap = new Map(products.map(p => [p.id, p]));
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [sortCol, setSortCol] = useState<string | null>(null);
@@ -241,7 +252,12 @@ export default function Receivables() {
                     <TableCell><Badge variant={s.payment_type === 'credit' ? 'destructive' : 'outline'}>{paymentLabel[s.payment_type]}</Badge></TableCell>
                     <TableCell>{s.delivery_employee_id ? (employees.find(e => e.id === s.delivery_employee_id)?.name || '-') : <span className="text-muted-foreground">Sin asignar</span>}</TableCell>
                     <TableCell>
-                      <Button size="sm" variant="default" onClick={() => openPayDialog(s.id)}>Registrar pago</Button>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => openDetail(s)}>
+                          <Eye className="w-4 h-4 mr-1" />Ver detalle
+                        </Button>
+                        <Button size="sm" variant="default" onClick={() => openPayDialog(s.id)}>Registrar pago</Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                   );
@@ -252,6 +268,69 @@ export default function Receivables() {
           <Pagination page={pg.page} totalPages={pg.totalPages} totalItems={pg.totalItems} pageSize={pg.pageSize} onPageChange={setPage} />
         </CardContent>
       </Card>
+
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5" />
+              Detalle de la venta
+            </DialogTitle>
+          </DialogHeader>
+          {detailSale && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium">{clientMap.get(detailSale.client_id)?.name || '-'}</span>
+                <span className="text-muted-foreground">{detailSale.date}</span>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 mb-2 text-sm font-medium">
+                  <Package className="w-4 h-4" />Productos
+                </div>
+                {detailSale.items.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sin productos</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Producto</TableHead>
+                        <TableHead className="text-right">Cantidad</TableHead>
+                        <TableHead className="text-right">Precio</TableHead>
+                        <TableHead className="text-right">Subtotal</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {detailSale.items.map(it => (
+                        <TableRow key={it.id}>
+                          <TableCell className="font-medium">{productMap.get(it.product_id)?.name || 'Producto'}</TableCell>
+                          <TableCell className="text-right">{it.quantity}</TableCell>
+                          <TableCell className="text-right">{formatMoney(it.unit_price)}</TableCell>
+                          <TableCell className="text-right font-semibold">{formatMoney(it.subtotal)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+
+              <div className="flex justify-between items-center p-3 bg-muted/50 rounded-lg text-sm">
+                <span>Total</span>
+                <span className="font-bold">{formatMoney(detailSale.total)}</span>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 mb-2 text-sm font-medium">
+                  <FileText className="w-4 h-4" />Notas
+                </div>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                  {detailSale.notes?.trim() ? detailSale.notes : 'Sin notas'}
+                </p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">

@@ -1,8 +1,8 @@
 import uuid
-from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config.timezone import bogota_today
 from app.domain.aggregates.receivable import Receivable
 from app.domain.enums import ReceivableStatus, SaleStatus
 from app.infrastructure.repositories import ReceivableRepository, SaleRepository
@@ -31,7 +31,7 @@ class ReceivableService:
             raise ValueError("Already paid")
 
         receivable.status = ReceivableStatus.PAID
-        receivable.paid_date = date.today()
+        receivable.paid_date = bogota_today()
 
         # Mark sale as paid
         sale = await self.sale_repo.get_by_id_with_items(receivable.sale_id)

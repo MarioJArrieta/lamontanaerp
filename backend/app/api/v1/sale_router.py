@@ -23,6 +23,7 @@ from app.application.services.electronic_invoice_service import (
 )
 from app.application.services.sale_service import SaleService
 from app.auth.dependencies import get_current_user, require_role
+from app.config.timezone import bogota_today
 from app.domain.aggregates.user import User
 from app.domain.enums import SaleStatus, UserRole
 from app.infrastructure.database import get_db
@@ -53,7 +54,10 @@ async def get_today_collections(
     _: Annotated[User, Depends(get_current_user)],
 ):
     service = SaleService(db)
-    return await service.get_collections_by_date(date.today())
+    # "Hoy" en America/Bogota: el servidor corre en UTC, asi que despues de las
+    # 7pm COT date.today() rueda al dia siguiente y el filtro de cobros deja
+    # fuera los cobros reales de hoy.
+    return await service.get_collections_by_date(bogota_today())
 
 
 @router.get("/{sale_id}", response_model=SaleResponse)

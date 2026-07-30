@@ -23,6 +23,7 @@ from app.domain.enums import (
     UserRole,
 )
 from app.config import get_settings
+from app.config.timezone import bogota_today
 from app.application.services.loyalty_service import LoyaltyService
 from app.infrastructure.repositories import (
     ClientRepository,
@@ -205,7 +206,7 @@ class SaleService:
             # Si era a credito, liquidar la cuenta por cobrar recien creada
             if receivable is not None:
                 receivable.status = ReceivableStatus.PAID
-                receivable.paid_date = date.today()
+                receivable.paid_date = bogota_today()
             await self.session.flush()
 
         return sale
@@ -284,7 +285,7 @@ class SaleService:
                 receivable = await self.receivable_repo.get_by_sale(sale.id)
                 if receivable:
                     receivable.status = ReceivableStatus.PAID
-                    receivable.paid_date = date.today()
+                    receivable.paid_date = bogota_today()
                     await self.session.flush()
 
         return pay_amount
@@ -331,8 +332,11 @@ class SaleService:
         if not sale:
             raise ValueError("Venta no encontrada")
 
-        # Only allow deletion on the same day as the sale
-        if sale.date != date.today():
+        # Only allow deletion on the same day as the sale.
+        # "Hoy" se calcula en America/Bogota: el servidor corre en UTC y despues
+        # de las 7pm COT (00:00 UTC) date.today() ya seria el dia siguiente,
+        # bloqueando ventas legitimamente creadas hoy.
+        if sale.date != bogota_today():
             raise ValueError("Solo se pueden eliminar ventas del dia actual")
 
         # Reverse loyalty points
