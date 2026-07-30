@@ -333,7 +333,7 @@ export default function Receivables() {
       </Dialog>
 
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <History className="w-5 h-5 text-green-600" />
@@ -360,38 +360,40 @@ export default function Receivables() {
                   <p>{historyData.length} cobro{historyData.length !== 1 ? 's' : ''}</p>
                 </div>
               </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Total venta</TableHead>
-                    <TableHead>Cobrado</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Medio</TableHead>
-                    <TableHead className="text-right">Detalle</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {historyData.map(s => (
-                    <TableRow key={s.id}>
-                      <TableCell className="font-medium">{clientMap.get(s.client_id)?.name || '-'}</TableCell>
-                      <TableCell>{formatMoney(s.total)}</TableCell>
-                      <TableCell className="font-semibold text-green-600">{formatMoney(s.paid_amount)}</TableCell>
-                      <TableCell>
-                        <Badge variant={s.status === 'paid' ? 'default' : 'outline'}>
-                          {s.status === 'paid' ? 'Pagado' : 'Parcial'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{s.payment_method ? methodLabel[s.payment_method] || s.payment_method : '-'}</TableCell>
-                      <TableCell className="text-right">
-                        <Button size="sm" variant="outline" onClick={() => { setHistoryOpen(false); openDetail(s); }}>
-                          <Eye className="w-4 h-4 mr-1" />Ver detalle
-                        </Button>
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Total venta</TableHead>
+                      <TableHead>Cobrado</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Medio</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Detalle</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {historyData.map(s => (
+                      <TableRow key={s.id}>
+                        <TableCell className="font-medium">{clientMap.get(s.client_id)?.name || '-'}</TableCell>
+                        <TableCell>{formatMoney(s.total)}</TableCell>
+                        <TableCell className="font-semibold text-green-600">{formatMoney(s.paid_amount)}</TableCell>
+                        <TableCell>
+                          <Badge variant={s.status === 'paid' ? 'default' : 'outline'}>
+                            {s.status === 'paid' ? 'Pagado' : 'Parcial'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{s.payment_method ? methodLabel[s.payment_method] || s.payment_method : '-'}</TableCell>
+                        <TableCell className="text-right">
+                          <Button size="sm" variant="outline" className="whitespace-nowrap" onClick={() => { setHistoryOpen(false); openDetail(s); }}>
+                            <Eye className="w-4 h-4 mr-1" />Ver detalle
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           )}
         </DialogContent>
