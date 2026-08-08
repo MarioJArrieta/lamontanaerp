@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { toast } from 'sonner';
-import { Plus, Receipt, Trash2, Paperclip, Eye } from 'lucide-react';
+import { Plus, Receipt, Trash2, Paperclip, Eye, Search } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -50,6 +50,7 @@ export default function Expenses() {
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
   const [filterFrom, setFilterFrom] = usePersistedState('expenses_from', monthAgo);
   const [filterTo, setFilterTo] = usePersistedState('expenses_to', today);
+  const [searchQuery, setSearchQuery] = usePersistedState('expenses_search', '');
 
   const [form, setForm] = useState({
     date: today, category: '', description: '', amount: '', notes: '', receipt_url: '',
@@ -114,9 +115,20 @@ export default function Expenses() {
     }
   };
 
-  const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0);
+  const filteredExpenses = useMemo(() => {
+    if (!searchQuery.trim()) return expenses;
+    const q = searchQuery.toLowerCase();
+    return expenses.filter(e => {
+      const description = e.description?.toLowerCase() || '';
+      const category = categoryLabel[e.category]?.toLowerCase() || '';
+      const notes = e.notes?.toLowerCase() || '';
+      return description.includes(q) || category.includes(q) || e.category.includes(q) || notes.includes(q) || String(e.amount).includes(q) || e.date.includes(q);
+    });
+  }, [expenses, searchQuery]);
+
+  const totalExpenses = filteredExpenses.reduce((s, e) => s + Number(e.amount), 0);
   const [page, setPage] = useState(1);
-  const pg = paginate(expenses, page);
+  const pg = paginate(filteredExpenses, page);
 
   return (
     <div>
@@ -187,7 +199,7 @@ export default function Expenses() {
         }
       />
 
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
         <div className="flex items-center gap-2">
           <Label className="text-sm whitespace-nowrap">Desde</Label>
           <Input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} className="w-auto" />
@@ -196,6 +208,15 @@ export default function Expenses() {
           <Label className="text-sm whitespace-nowrap">Hasta</Label>
           <Input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} className="w-auto" />
         </div>
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por descripcion, categoria, monto, notas..."
+            value={searchQuery}
+            onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
+            className="pl-9"
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-6">
@@ -203,7 +224,7 @@ export default function Expenses() {
           <CardContent className="px-4 py-3">
             <p className="text-xs text-muted-foreground">Total gastos</p>
             <p className="text-lg font-bold">{formatMoney(totalExpenses)}</p>
-            <p className="text-xs text-muted-foreground">{expenses.length} registros</p>
+            <p className="text-xs text-muted-foreground">{filteredExpenses.length} registros</p>
           </CardContent>
         </Card>
         <Card>
@@ -211,7 +232,7 @@ export default function Expenses() {
             <p className="text-xs text-muted-foreground">Por categoria</p>
             <div className="mt-1 space-y-0.5">
               {Object.entries(
-                expenses.reduce<Record<string, number>>((acc, e) => {
+                filteredExpenses.reduce<Record<string, number>>((acc, e) => {
                   acc[e.category] = (acc[e.category] || 0) + Number(e.amount);
                   return acc;
                 }, {})
@@ -220,7 +241,7 @@ export default function Expenses() {
                   <span className="font-medium">{categoryLabel[cat] || cat}:</span> {formatMoney(total)}
                 </p>
               ))}
-              {expenses.length === 0 && <p className="text-xs text-muted-foreground">-</p>}
+              {filteredExpenses.length === 0 && <p className="text-xs text-muted-foreground">-</p>}
             </div>
           </CardContent>
         </Card>
@@ -248,7 +269,7 @@ export default function Expenses() {
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8">
                       <Receipt className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
-                      <p className="text-muted-foreground">No hay gastos registrados</p>
+                      <p className="text-muted-foreground">{searchQuery.trim() ? 'No hay gastos que coincidan con la busqueda' : 'No hay gastos registrados'}</p>
                     </TableCell>
                   </TableRow>
                 ) : pg.data.map(exp => (

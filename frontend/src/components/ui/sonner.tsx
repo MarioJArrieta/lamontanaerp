@@ -1,6 +1,6 @@
 import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
-import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
+import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon, XIcon } from "lucide-react"
 
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme()
@@ -9,7 +9,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
+      closeButton
       icons={{
+        close: (
+          <XIcon className="size-3.5" />
+        ),
         success: (
           <CircleCheckIcon className="size-4" />
         ),
@@ -35,8 +39,13 @@ const Toaster = ({ ...props }: ToasterProps) => {
         } as React.CSSProperties
       }
       toastOptions={{
+        closeButtonAriaLabel: "Cerrar notificacion",
         classNames: {
           toast: "cn-toast",
+          // sonner estiliza el boton con selectores de atributo (mas especificos
+          // que una utilidad de Tailwind), asi que estas clases van con "!".
+          closeButton:
+            "size-6! border-border! bg-popover! text-popover-foreground! hover:bg-muted! hover:border-border!",
         },
       }}
       {...props}

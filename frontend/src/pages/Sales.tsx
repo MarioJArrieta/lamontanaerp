@@ -353,9 +353,10 @@ export default function Sales() {
       const notes = s.notes?.toLowerCase() || '';
       const status = statusLabel[s.status]?.toLowerCase() || '';
       const payType = paymentLabel[s.payment_type]?.toLowerCase() || '';
-      return clientName.includes(q) || clientZone.includes(q) || empName.includes(q) || notes.includes(q) || status.includes(q) || payType.includes(q) || s.date.includes(q);
+      const hasProduct = s.items.some(item => (productMap.get(item.product_id)?.name || '').toLowerCase().includes(q));
+      return clientName.includes(q) || clientZone.includes(q) || empName.includes(q) || notes.includes(q) || status.includes(q) || payType.includes(q) || s.date.includes(q) || hasProduct;
     });
-  }, [sales, searchQuery, clients, employees]);
+  }, [sales, searchQuery, clients, employees, products]);
 
   const sortedSales = useMemo(() => {
     if (!sortCol) return filteredSales;
@@ -596,7 +597,7 @@ export default function Sales() {
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por cliente, zona, repartidor, notas..."
+            placeholder="Buscar por cliente, producto, zona, repartidor, notas..."
             value={searchQuery}
             onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
             className="pl-9"
