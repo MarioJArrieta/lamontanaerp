@@ -49,7 +49,7 @@ export default function AppLayout() {
           </div>
         </main>
       </div>
-      <Toaster position="top-right" />
+      <Toaster position="bottom-right" />
     </div>
   );
 }
