@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import { toast } from 'sonner';
-import { Plus, ShoppingCart, FileText, Package, Trash2, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Cloud, Lock, Download, Printer, Coins, X } from 'lucide-react';
+import { Plus, ShoppingCart, FileText, Package, Trash2, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Cloud, Lock, Download, Printer, Coins, X, Upload, AlertCircle, CheckCircle2 } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -22,6 +22,41 @@ import { generateInvoicePdf, generateInvoiceHtml } from '@/lib/invoice';
 function formatMoney(val: string | number) {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(Number(val));
 }
+
+interface SaleImportResult {
+  count_created: number;
+  count_errors: number;
+  total_amount: string | number;
+  errors: { index: number; reason: string }[];
+}
+
+const SALE_IMPORT_EXAMPLE = {
+  sales: [
+    {
+      date: '2026-09-10',
+      client_name: 'Juan Perez',
+      delivery_employee_name: 'Carlos Gomez',
+      payment_type: 'credit',
+      notes: 'Importado desde sistema anterior',
+      mark_paid: false,
+      items: [
+        { product_name: 'Bolsa de agua 6L', quantity: 20 },
+        { product_name: 'Botellon 20L', quantity: 5, unit_price: 8000 },
+      ],
+    },
+    {
+      date: '2026-09-10',
+      client_name: 'Maria Rodriguez',
+      delivery_employee_name: 'Carlos Gomez',
+      payment_type: 'cash',
+      mark_paid: true,
+      payment_method: 'transfer',
+      items: [
+        { product_name: 'Bolsa de agua 6L', quantity: 10 },
+      ],
+    },
+  ],
+};
 
 const statusLabel: Record<string, string> = { pending: 'Pendiente', partial: 'Parcial', paid: 'Pagada' };
 const statusVariant = (s: string) => s === 'paid' ? 'default' as const : s === 'partial' ? 'outline' as const : 'secondary' as const;
@@ -60,6 +95,12 @@ export default function Sales() {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkMethod, setBulkMethod] = useState('');
   const [bulkSaving, setBulkSaving] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importEntries, setImportEntries] = useState<Record<string, unknown>[] | null>(null);
+  const [importFileName, setImportFileName] = useState('');
+  const [importParseError, setImportParseError] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<SaleImportResult | null>(null);
 
   // Depura la seleccion cuando cambian las ventas (tras cobrar/eliminar):
   // descarta ids que ya no existen o que quedaron pagadas.
@@ -243,6 +284,77 @@ export default function Sales() {
     }
   };
 
+  const openImportDialog = () => {
+    setImportEntries(null);
+    setImportFileName('');
+    setImportParseError('');
+    setImportResult(null);
+    setImportOpen(true);
+  };
+
+  const downloadImportExample = () => {
+    const blob = new Blob([JSON.stringify(SALE_IMPORT_EXAMPLE, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ejemplo-importar-ventas.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportFile = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setImportResult(null);
+    setImportParseError('');
+    setImportEntries(null);
+    setImportFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        const sales = Array.isArray(parsed) ? parsed : parsed.sales;
+        if (!Array.isArray(sales) || sales.length === 0) {
+          setImportParseError('El JSON debe tener un arreglo "sales" con al menos una venta.');
+          return;
+        }
+        setImportEntries(sales);
+      } catch {
+        setImportParseError('El archivo no es un JSON valido.');
+      }
+    };
+    reader.onerror = () => setImportParseError('No se pudo leer el archivo.');
+    reader.readAsText(file);
+  };
+
+  const handleConfirmImport = async () => {
+    if (!importEntries || importEntries.length === 0) return;
+    setImporting(true);
+    try {
+      const { data } = await api.post('/sales/import', { sales: importEntries });
+      setImportResult(data);
+      if (data.count_created > 0) {
+        toast.success(`${data.count_created} venta${data.count_created === 1 ? '' : 's'} importada${data.count_created === 1 ? '' : 's'}`);
+        fetchData();
+      }
+      if (data.count_errors > 0) {
+        toast.error(`${data.count_errors} venta${data.count_errors === 1 ? '' : 's'} con errores`);
+      }
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+      let msg = 'Error al importar';
+      if (typeof detail === 'string') {
+        msg = detail;
+      } else if (Array.isArray(detail)) {
+        msg = detail.map((d: { loc?: unknown[]; msg?: string }) => d.msg || JSON.stringify(d)).join('; ');
+      }
+      toast.error(msg);
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const openDeleteDialog = (saleId: string) => {
     setDeleteSaleId(saleId);
     setDeletePassword('');
@@ -409,11 +521,15 @@ export default function Sales() {
         title="Ventas"
         description="Gestion de ventas"
         action={
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger>
-              <Button><Plus className="w-4 h-4 mr-2" />Nueva venta</Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={openImportDialog}>
+              <Upload className="w-4 h-4 mr-2" />Importar JSON
+            </Button>
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger>
+                <Button><Plus className="w-4 h-4 mr-2" />Nueva venta</Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader><DialogTitle>Crear venta</DialogTitle></DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -581,7 +697,75 @@ export default function Sales() {
                 <SubmitButton loading={saving} className="w-full">Crear venta</SubmitButton>
               </form>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+
+            <Dialog open={importOpen} onOpenChange={setImportOpen}>
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Upload className="w-5 h-5" />Importar ventas desde JSON
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Sube un archivo JSON con un arreglo <code>sales</code>. Cada venta identifica cliente,
+                    repartidor y productos por nombre (o por id/cedula si los conoces).
+                  </p>
+                  <Button type="button" variant="outline" size="sm" onClick={downloadImportExample}>
+                    <Download className="w-4 h-4 mr-2" />Descargar ejemplo
+                  </Button>
+                  <div className="space-y-2">
+                    <Label>Archivo JSON</Label>
+                    <Input type="file" accept=".json,application/json" onChange={handleImportFile} />
+                    {importFileName && <p className="text-xs text-muted-foreground">{importFileName}</p>}
+                  </div>
+
+                  {importParseError && (
+                    <div className="flex items-start gap-2 p-3 bg-destructive/10 text-destructive rounded-lg text-sm">
+                      <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />{importParseError}
+                    </div>
+                  )}
+
+                  {importEntries && !importResult && (
+                    <div className="p-3 bg-muted/50 rounded-lg text-sm">
+                      Se detectaron <span className="font-semibold">{importEntries.length}</span> venta{importEntries.length === 1 ? '' : 's'} en el archivo.
+                    </div>
+                  )}
+
+                  {importResult && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 p-3 bg-green-50 text-green-700 rounded-lg text-sm">
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        {importResult.count_created} venta{importResult.count_created === 1 ? '' : 's'} importada{importResult.count_created === 1 ? '' : 's'} · {formatMoney(importResult.total_amount)}
+                      </div>
+                      {importResult.errors.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-destructive">{importResult.errors.length} con errores:</p>
+                          <ul className="text-xs space-y-1 max-h-40 overflow-y-auto">
+                            {importResult.errors.map(err => (
+                              <li key={err.index} className="flex items-start gap-2 p-2 bg-destructive/10 text-destructive rounded">
+                                <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                                <span>Venta #{err.index + 1}: {err.reason}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <SubmitButton
+                    loading={importing}
+                    className="w-full"
+                    disabled={!importEntries || importEntries.length === 0}
+                    onClick={handleConfirmImport}
+                  >
+                    Importar {importEntries?.length ?? 0} venta{importEntries?.length === 1 ? '' : 's'}
+                  </SubmitButton>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         }
       />
 
