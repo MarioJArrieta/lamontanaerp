@@ -1,6 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { Plus, UserCircle, Search, MapPin, Map, Navigation, Droplets, Tag, Trash2, KeyRound, Cloud } from 'lucide-react';
+import { Plus, UserCircle, Search, MapPin, Map, Navigation, Droplets, Tag, Trash2, KeyRound, Cloud, FileSpreadsheet } from 'lucide-react';
+import ExportColumnsDialog from '@/components/shared/ExportColumnsDialog';
+import type { ExportColumn } from '@/lib/exportExcel';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -66,6 +68,31 @@ export default function Clients() {
     address: '', delivery_zone: '', phone: '', email: '',
     electronic_invoicing_enabled: false,
   };
+
+  const [exportOpen, setExportOpen] = useState(false);
+  const filteredClients = useMemo(() => {
+    const q = search.toLowerCase();
+    return q ? clients.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      c.cedula_nit.toLowerCase().includes(q) ||
+      (c.delivery_zone || '').toLowerCase().includes(q) ||
+      (c.phone || '').includes(q)
+    ) : clients;
+  }, [clients, search]);
+  const clientExportColumns: ExportColumn<Client>[] = [
+    { key: 'name', label: 'Nombre', value: c => c.name },
+    { key: 'client_type', label: 'Tipo', value: c => clientTypeLabel[c.client_type] || c.client_type },
+    { key: 'cedula_nit', label: 'Cedula/NIT', value: c => c.cedula_nit },
+    { key: 'dian_id_type', label: 'Tipo documento DIAN', value: c => c.dian_id_type || '' },
+    { key: 'address', label: 'Direccion', value: c => c.address || '' },
+    { key: 'delivery_zone', label: 'Zona', value: c => c.delivery_zone || '' },
+    { key: 'phone', label: 'Telefono', value: c => c.phone || '' },
+    { key: 'email', label: 'Email', value: c => c.email || '' },
+    { key: 'loyalty_points', label: 'Puntos', value: c => c.loyalty_points },
+    { key: 'is_active', label: 'Estado', value: c => c.is_active ? 'Activo' : 'Inactivo' },
+    { key: 'electronic_invoicing_enabled', label: 'Facturacion electronica', value: c => c.electronic_invoicing_enabled ? 'Si' : 'No' },
+    { key: 'created_at', label: 'Fecha de registro', value: c => c.created_at?.slice(0, 10) || '' },
+  ];
 
   const fetchData = () => {
     Promise.all([
@@ -269,6 +296,9 @@ export default function Clients() {
           <Button variant="outline" onClick={() => setAllMapOpen(true)}>
             <Map className="w-4 h-4 mr-2" />Ver mapa
           </Button>
+          <Button variant="outline" onClick={() => setExportOpen(true)}>
+            <FileSpreadsheet className="w-4 h-4 mr-2" />Exportar
+          </Button>
           <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditId(null); setForm(emptyForm); } }}>
             <DialogTrigger>
               <Button><Plus className="w-4 h-4 mr-2" />Nuevo cliente</Button>
@@ -412,14 +442,7 @@ export default function Clients() {
               </TableHeader>
               <TableBody>
                 {(() => {
-                  const q = search.toLowerCase();
-                  const filtered = q ? clients.filter(c =>
-                    c.name.toLowerCase().includes(q) ||
-                    c.cedula_nit.toLowerCase().includes(q) ||
-                    (c.delivery_zone || '').toLowerCase().includes(q) ||
-                    (c.phone || '').includes(q)
-                  ) : clients;
-                  const pg = paginate(filtered, page);
+                  const pg = paginate(filteredClients, page);
                   return pg.data.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-8">
@@ -464,14 +487,7 @@ export default function Clients() {
             </Table>
           )}
           {(() => {
-            const q = search.toLowerCase();
-            const filtered = q ? clients.filter(c =>
-              c.name.toLowerCase().includes(q) ||
-              c.cedula_nit.toLowerCase().includes(q) ||
-              (c.delivery_zone || '').toLowerCase().includes(q) ||
-              (c.phone || '').includes(q)
-            ) : clients;
-            const pg = paginate(filtered, page);
+            const pg = paginate(filteredClients, page);
             return <Pagination page={pg.page} totalPages={pg.totalPages} totalItems={pg.totalItems} pageSize={pg.pageSize} onPageChange={setPage} />;
           })()}
         </CardContent>
@@ -675,6 +691,16 @@ export default function Clients() {
           <ClientsMap clients={clients} />
         </DialogContent>
       </Dialog>
+
+      <ExportColumnsDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title="Exportar clientes"
+        filename="clientes"
+        sheetName="Clientes"
+        columns={clientExportColumns}
+        rows={filteredClients}
+      />
     </div>
   );
 }

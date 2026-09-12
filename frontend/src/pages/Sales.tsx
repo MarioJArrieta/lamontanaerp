@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent 
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import { toast } from 'sonner';
-import { Plus, ShoppingCart, FileText, Package, Trash2, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Cloud, Lock, Download, Printer, Coins, X, Upload, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Plus, ShoppingCart, FileText, Package, Trash2, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Cloud, Lock, Download, Printer, Coins, X, Upload, AlertCircle, CheckCircle2, FileSpreadsheet } from 'lucide-react';
+import ExportColumnsDialog from '@/components/shared/ExportColumnsDialog';
+import type { ExportColumn } from '@/lib/exportExcel';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -105,6 +107,7 @@ export default function Sales() {
   const [importParseError, setImportParseError] = useState('');
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<SaleImportResult | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
 
   // Depura la seleccion cuando cambian las ventas (tras cobrar/eliminar):
   // descarta ids que ya no existen o que quedaron pagadas.
@@ -517,6 +520,28 @@ export default function Sales() {
     }
   }
 
+  const saleItemsSummary = (s: Sale) => (s.items || [])
+    .map(item => `${item.quantity} ${productMap.get(item.product_id)?.name || 'Producto'}`)
+    .join(', ');
+
+  const saleExportColumns: ExportColumn<Sale>[] = [
+    { key: 'date', label: 'Fecha', value: s => s.date },
+    { key: 'client', label: 'Cliente', value: s => clientMap.get(s.client_id)?.name || '' },
+    { key: 'items', label: 'Productos', value: s => saleItemsSummary(s) },
+    { key: 'subtotal', label: 'Subtotal', value: s => Number(s.subtotal) },
+    { key: 'tax', label: 'IVA', value: s => Number(s.tax) },
+    { key: 'total', label: 'Total', value: s => Number(s.total) },
+    { key: 'paid_amount', label: 'Abonado', value: s => Number(s.paid_amount) },
+    { key: 'balance', label: 'Saldo', value: s => Number(s.balance) },
+    { key: 'payment_type', label: 'Tipo de pago', value: s => paymentLabel[s.payment_type] || s.payment_type },
+    { key: 'payment_method', label: 'Medio de pago', value: s => s.payment_method ? methodLabel[s.payment_method] : '' },
+    { key: 'status', label: 'Estado', value: s => statusLabel[s.status] || s.status },
+    { key: 'employee', label: 'Repartidor', value: s => employees.find(e => e.id === s.delivery_employee_id)?.name || '' },
+    { key: 'notes', label: 'Notas', value: s => s.notes || '' },
+    { key: 'dian_document_number', label: 'No. Factura DIAN', value: s => s.dian_document_number || '' },
+    { key: 'dian_status', label: 'Estado DIAN', value: s => s.dian_status || '' },
+  ];
+
   const pg = paginate(sortedSales, page);
 
   return (
@@ -526,6 +551,9 @@ export default function Sales() {
         description="Gestion de ventas"
         action={
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setExportOpen(true)}>
+              <FileSpreadsheet className="w-4 h-4 mr-2" />Exportar
+            </Button>
             <Button variant="outline" onClick={openImportDialog}>
               <Upload className="w-4 h-4 mr-2" />Importar JSON
             </Button>
@@ -771,6 +799,16 @@ export default function Sales() {
                 </div>
               </DialogContent>
             </Dialog>
+
+            <ExportColumnsDialog
+              open={exportOpen}
+              onOpenChange={setExportOpen}
+              title="Exportar ventas"
+              filename="ventas"
+              sheetName="Ventas"
+              columns={saleExportColumns}
+              rows={sortedSales}
+            />
           </div>
         }
       />
