@@ -849,27 +849,21 @@ export default function Sales() {
             </Dialog>
 
             <Dialog open={importOpen} onOpenChange={setImportOpen}>
-              <DialogContent className="w-[95vw] max-w-5xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="w-[97vw] max-w-[1440px] max-h-[92vh] overflow-hidden flex flex-col">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <Upload className="w-5 h-5" />Crear ventas masivas desde JSON
                   </DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Una sola fecha y un solo repartidor aplican a todas las ventas. El JSON solo trae
-                    cliente, items (producto, cantidad, precio) y el medio de pago de cada venta. El
-                    cliente y el producto se buscan por coincidencia de nombre; revisa y corrige la
-                    tabla antes de crear.
-                  </p>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Fecha (aplica a todas)</Label>
+                <div className="border rounded-lg p-4 bg-muted/30 space-y-3 shrink-0">
+                  <div className="grid grid-cols-1 md:grid-cols-[repeat(2,minmax(0,240px))_1fr_auto] gap-4 items-end">
+                    <div className="space-y-1.5">
+                      <Label>Fecha <span className="text-muted-foreground font-normal">(todas)</span></Label>
                       <Input type="date" value={importDate} onChange={e => setImportDate(e.target.value)} required />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Repartidor (aplica a todas)</Label>
+                    <div className="space-y-1.5">
+                      <Label>Repartidor <span className="text-muted-foreground font-normal">(todos)</span></Label>
                       <Select value={importEmployeeId || null} onValueChange={v => setImportEmployeeId(sv(v))}>
                         <SelectTrigger><SelectValue placeholder="Seleccionar">{(v: string) => deliveryEmployees.find(e => e.id === v)?.name || 'Seleccionar'}</SelectValue></SelectTrigger>
                         <SelectContent>
@@ -877,128 +871,149 @@ export default function Sales() {
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Button type="button" variant="outline" size="sm" onClick={downloadImportExample}>
-                      <Download className="w-4 h-4 mr-2" />Descargar ejemplo
-                    </Button>
-                    <Label className="text-sm">Cargar JSON</Label>
-                    <Input type="file" accept=".json,application/json" onChange={handleImportFile} className="w-auto" />
-                    {importFileName && <span className="text-xs text-muted-foreground">{importFileName}</span>}
-                    <Button type="button" variant="ghost" size="sm" onClick={addImportRow} className="ml-auto">
-                      <Plus className="w-4 h-4 mr-1" />Agregar cliente
-                    </Button>
-                  </div>
-
-                  {importParseError && (
-                    <div className="flex items-start gap-2 p-3 bg-destructive/10 text-destructive rounded-lg text-sm">
-                      <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />{importParseError}
+                    <div className="space-y-1.5">
+                      <Label>Archivo JSON</Label>
+                      <div className="flex items-center gap-2">
+                        <Input type="file" accept=".json,application/json" onChange={handleImportFile} />
+                        <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={downloadImportExample}>
+                          <Download className="w-4 h-4 mr-2" />Ejemplo
+                        </Button>
+                      </div>
+                      {importFileName && <p className="text-xs text-muted-foreground">{importFileName}</p>}
                     </div>
-                  )}
+                    <Button type="button" variant="outline" onClick={addImportRow}>
+                      <Plus className="w-4 h-4 mr-2" />Agregar cliente
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    El cliente y el producto de cada fila se buscan por coincidencia de nombre en el JSON; revisa y corrige lo que necesites antes de crear.
+                  </p>
+                </div>
 
-                  {importRows.length > 0 && (
-                    <div className="space-y-3">
-                      {importRows.map(row => {
-                        const rowResult = importResults?.find(r => r.rowId === row.id);
-                        const rowTotal = row.items.reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.unitPrice) || 0), 0);
-                        return (
-                          <div key={row.id} className={`border rounded-lg p-3 space-y-3 ${!isImportRowValid(row) ? 'border-destructive/40 bg-destructive/5' : row.clientMatchStatus === 'fallback' ? 'border-amber-400/50 bg-amber-50' : ''}`}>
-                            <div className="flex flex-wrap items-end gap-3">
-                              <div className="space-y-1 flex-1 min-w-48">
-                                <Label className="text-xs">
-                                  Cliente
-                                  {row.clientMatchStatus === 'fallback' && <span className="text-amber-600"> (sin match exacto para "{row.rawClientName}", se uso Consumidor Final: revisa)</span>}
-                                  {row.clientMatchStatus === 'ambiguous' && <span className="text-destructive"> (varios clientes coinciden con "{row.rawClientName}", elige uno)</span>}
-                                  {row.clientMatchStatus === 'none' && row.rawClientName && <span className="text-destructive"> (sin match: "{row.rawClientName}")</span>}
-                                </Label>
-                                <Select value={row.clientId || null} onValueChange={v => updateImportRow(row.id, { clientId: sv(v), clientMatchStatus: 'matched' })}>
-                                  <SelectTrigger><SelectValue placeholder="Seleccionar cliente">{(v: string) => clientMap.get(v)?.name || 'Seleccionar cliente'}</SelectValue></SelectTrigger>
+                {importParseError && (
+                  <div className="flex items-start gap-2 p-3 bg-destructive/10 text-destructive rounded-lg text-sm shrink-0">
+                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />{importParseError}
+                  </div>
+                )}
+
+                <div className="flex-1 overflow-y-auto space-y-3 py-1">
+                  {importRows.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground text-sm">
+                      Carga un archivo JSON o usa "Agregar cliente" para empezar.
+                    </div>
+                  ) : importRows.map(row => {
+                    const rowResult = importResults?.find(r => r.rowId === row.id);
+                    const rowTotal = row.items.reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.unitPrice) || 0), 0);
+                    return (
+                      <div key={row.id} className={`border rounded-lg overflow-hidden ${!isImportRowValid(row) ? 'border-destructive/40' : row.clientMatchStatus === 'fallback' ? 'border-amber-400/50' : ''}`}>
+                        <div className={`grid grid-cols-12 gap-3 items-end p-3 ${!isImportRowValid(row) ? 'bg-destructive/5' : row.clientMatchStatus === 'fallback' ? 'bg-amber-50' : 'bg-muted/20'}`}>
+                          <div className="col-span-12 md:col-span-4 space-y-1">
+                            <Label className="text-xs">Cliente</Label>
+                            <Select value={row.clientId || null} onValueChange={v => updateImportRow(row.id, { clientId: sv(v), clientMatchStatus: 'matched' })}>
+                              <SelectTrigger><SelectValue placeholder="Seleccionar cliente">{(v: string) => clientMap.get(v)?.name || 'Seleccionar cliente'}</SelectValue></SelectTrigger>
+                              <SelectContent>
+                                {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            {row.clientMatchStatus === 'fallback' && <p className="text-xs text-amber-600">Sin match exacto para "{row.rawClientName}": se uso Consumidor Final, revisa</p>}
+                            {row.clientMatchStatus === 'ambiguous' && <p className="text-xs text-destructive">Varios clientes coinciden con "{row.rawClientName}": elige uno</p>}
+                            {row.clientMatchStatus === 'none' && row.rawClientName && <p className="text-xs text-destructive">Sin match para "{row.rawClientName}"</p>}
+                          </div>
+                          <div className="col-span-6 md:col-span-2 space-y-1">
+                            <Label className="text-xs">Tipo de pago</Label>
+                            <div className="flex gap-1">
+                              <Button type="button" size="sm" className="flex-1" variant={row.paymentType === 'cash' ? 'default' : 'outline'} onClick={() => updateImportRow(row.id, { paymentType: 'cash' })}>Contado</Button>
+                              <Button type="button" size="sm" className="flex-1" variant={row.paymentType === 'credit' ? 'default' : 'outline'} onClick={() => updateImportRow(row.id, { paymentType: 'credit' })}>Credito</Button>
+                            </div>
+                          </div>
+                          <label className="col-span-6 md:col-span-2 flex items-center gap-2 text-sm pb-2">
+                            <Checkbox checked={row.markPaid} onChange={e => updateImportRow(row.id, { markPaid: e.target.checked })} />
+                            Cobrada
+                          </label>
+                          <div className="col-span-8 md:col-span-3 space-y-1">
+                            {row.markPaid && (
+                              <>
+                                <Label className="text-xs">Medio de pago</Label>
+                                <Select value={row.paymentMethod || null} onValueChange={v => updateImportRow(row.id, { paymentMethod: sv(v) })}>
+                                  <SelectTrigger><SelectValue placeholder="Seleccionar">{(v: string) => methodLabel[v] || 'Seleccionar'}</SelectValue></SelectTrigger>
                                   <SelectContent>
-                                    {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                    <SelectItem value="cash">Efectivo</SelectItem>
+                                    <SelectItem value="transfer">Transferencia</SelectItem>
+                                    <SelectItem value="nequi">Nequi</SelectItem>
+                                    <SelectItem value="daviplata">Daviplata</SelectItem>
                                   </SelectContent>
                                 </Select>
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Tipo de pago</Label>
-                                <div className="flex gap-1">
-                                  <Button type="button" size="sm" variant={row.paymentType === 'cash' ? 'default' : 'outline'} onClick={() => updateImportRow(row.id, { paymentType: 'cash' })}>Contado</Button>
-                                  <Button type="button" size="sm" variant={row.paymentType === 'credit' ? 'default' : 'outline'} onClick={() => updateImportRow(row.id, { paymentType: 'credit' })}>Credito</Button>
-                                </div>
-                              </div>
-                              <label className="flex items-center gap-2 text-sm pb-1.5">
-                                <Checkbox checked={row.markPaid} onChange={e => updateImportRow(row.id, { markPaid: e.target.checked })} />
-                                Cobrada
-                              </label>
-                              {row.markPaid && (
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Medio de pago</Label>
-                                  <Select value={row.paymentMethod || null} onValueChange={v => updateImportRow(row.id, { paymentMethod: sv(v) })}>
-                                    <SelectTrigger className="w-36"><SelectValue placeholder="Seleccionar">{(v: string) => methodLabel[v] || 'Seleccionar'}</SelectValue></SelectTrigger>
+                              </>
+                            )}
+                          </div>
+                          <div className="col-span-4 md:col-span-1 flex justify-end">
+                            <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => removeImportRow(row.id)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-1/2">Producto</TableHead>
+                              <TableHead className="w-28">Cantidad</TableHead>
+                              <TableHead className="w-36">Precio unitario</TableHead>
+                              <TableHead className="text-right">Subtotal</TableHead>
+                              <TableHead className="w-10"></TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {row.items.map(item => (
+                              <TableRow key={item.id}>
+                                <TableCell>
+                                  <Select value={item.productId || null} onValueChange={v => updateImportItem(row.id, item.id, { productId: sv(v), productMatchStatus: 'matched' })}>
+                                    <SelectTrigger><SelectValue placeholder="Seleccionar producto">{(v: string) => productMap.get(v)?.name || 'Seleccionar producto'}</SelectValue></SelectTrigger>
                                     <SelectContent>
-                                      <SelectItem value="cash">Efectivo</SelectItem>
-                                      <SelectItem value="transfer">Transferencia</SelectItem>
-                                      <SelectItem value="nequi">Nequi</SelectItem>
-                                      <SelectItem value="daviplata">Daviplata</SelectItem>
+                                      {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                                     </SelectContent>
                                   </Select>
-                                </div>
-                              )}
-                              <Button type="button" variant="ghost" size="sm" className="text-destructive ml-auto" onClick={() => removeImportRow(row.id)}>
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </Button>
-                            </div>
-
-                            <div className="space-y-1.5">
-                              {row.items.map(item => (
-                                <div key={item.id} className="flex flex-wrap items-end gap-2">
-                                  <div className="space-y-1 flex-1 min-w-40">
-                                    {item === row.items[0] && (
-                                      <Label className="text-xs">
-                                        Producto
-                                        {item.productMatchStatus === 'ambiguous' && <span className="text-destructive"> (varios productos coinciden, elige uno)</span>}
-                                        {item.productMatchStatus === 'none' && item.rawProductName && <span className="text-destructive"> (sin match)</span>}
-                                      </Label>
-                                    )}
-                                    <Select value={item.productId || null} onValueChange={v => updateImportItem(row.id, item.id, { productId: sv(v), productMatchStatus: 'matched' })}>
-                                      <SelectTrigger><SelectValue placeholder="Seleccionar producto">{(v: string) => productMap.get(v)?.name || 'Seleccionar producto'}</SelectValue></SelectTrigger>
-                                      <SelectContent>
-                                        {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  <div className="space-y-1 w-24">
-                                    {item === row.items[0] && <Label className="text-xs">Cantidad</Label>}
-                                    <Input type="number" min={1} value={item.quantity} onChange={e => updateImportItem(row.id, item.id, { quantity: e.target.value })} />
-                                  </div>
-                                  <div className="space-y-1 w-32">
-                                    {item === row.items[0] && <Label className="text-xs">Precio unitario</Label>}
-                                    <Input type="number" min={0} value={item.unitPrice} onChange={e => updateImportItem(row.id, item.id, { unitPrice: e.target.value })} />
-                                  </div>
+                                  {item.productMatchStatus === 'ambiguous' && <p className="text-xs text-destructive mt-1">Varios productos coinciden: elige uno</p>}
+                                  {item.productMatchStatus === 'none' && item.rawProductName && <p className="text-xs text-destructive mt-1">Sin match para "{item.rawProductName}"</p>}
+                                </TableCell>
+                                <TableCell>
+                                  <Input type="number" min={1} value={item.quantity} onChange={e => updateImportItem(row.id, item.id, { quantity: e.target.value })} />
+                                </TableCell>
+                                <TableCell>
+                                  <Input type="number" min={0} value={item.unitPrice} onChange={e => updateImportItem(row.id, item.id, { unitPrice: e.target.value })} />
+                                </TableCell>
+                                <TableCell className="text-right font-medium whitespace-nowrap">
+                                  {formatMoney((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0))}
+                                </TableCell>
+                                <TableCell>
                                   <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => removeImportItem(row.id, item.id)} disabled={row.items.length <= 1}>
                                     <X className="w-3.5 h-3.5" />
                                   </Button>
-                                </div>
-                              ))}
-                              <Button type="button" variant="ghost" size="sm" onClick={() => addImportItem(row.id)}>
-                                <Plus className="w-3.5 h-3.5 mr-1" />Agregar item
-                              </Button>
-                            </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
 
-                            <div className="flex items-center justify-between text-sm text-muted-foreground border-t pt-2">
-                              <span>Total estimado: <span className="font-medium text-foreground">{formatMoney(rowTotal)}</span></span>
-                              {rowResult && (
-                                rowResult.ok
-                                  ? <span className="flex items-center gap-1 text-green-600"><CheckCircle2 className="w-3.5 h-3.5" />Creada</span>
-                                  : <span className="flex items-center gap-1 text-destructive"><AlertCircle className="w-3.5 h-3.5" />{rowResult.reason}</span>
-                              )}
-                            </div>
+                        <div className="flex items-center justify-between px-3 py-2 border-t bg-muted/10">
+                          <Button type="button" variant="ghost" size="sm" onClick={() => addImportItem(row.id)}>
+                            <Plus className="w-3.5 h-3.5 mr-1" />Agregar item
+                          </Button>
+                          <div className="flex items-center gap-3 text-sm">
+                            {rowResult && (
+                              rowResult.ok
+                                ? <span className="flex items-center gap-1 text-green-600"><CheckCircle2 className="w-3.5 h-3.5" />Creada</span>
+                                : <span className="flex items-center gap-1 text-destructive"><AlertCircle className="w-3.5 h-3.5" />{rowResult.reason}</span>
+                            )}
+                            <span className="text-muted-foreground">Total: <span className="font-semibold text-foreground">{formatMoney(rowTotal)}</span></span>
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
 
+                <div className="shrink-0 space-y-3 pt-1">
                   {importRows.length > 0 && (
                     <div className="p-3 bg-muted/50 rounded-lg text-sm flex justify-between">
                       <span>{importRows.length} venta{importRows.length === 1 ? '' : 's'} · {importRows.filter(isImportRowValid).length} lista{importRows.filter(isImportRowValid).length === 1 ? '' : 's'} para crear</span>
