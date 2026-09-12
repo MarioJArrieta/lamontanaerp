@@ -62,7 +62,6 @@ const SALE_IMPORT_EXAMPLE = {
       client: 'Maria Rodriguez',
       payment_type: 'cash',
       mark_paid: true,
-      payment_method: 'transfer',
       items: [
         { product: 'Bolsa de agua 6L', quantity: 10, unit_price: 3000 },
       ],
@@ -374,7 +373,7 @@ export default function Sales() {
             clientMatchStatus: clientMatch.status,
             paymentType: s.payment_type === 'credit' ? 'credit' : 'cash',
             markPaid: s.mark_paid === true,
-            paymentMethod: typeof s.payment_method === 'string' ? s.payment_method : '',
+            paymentMethod: 'cash',
             items: rawItems.map((it: Record<string, unknown>) => {
               const rawProductName = typeof it.product === 'string' ? it.product : '';
               const productMatch = findProductMatch(rawProductName);
@@ -400,7 +399,7 @@ export default function Sales() {
 
   const addImportRow = () => {
     setImportRows(prev => [...prev, {
-      id: nextBulkId(), rawClientName: '', clientId: '', clientMatchStatus: 'none', paymentType: 'cash', markPaid: false, paymentMethod: '',
+      id: nextBulkId(), rawClientName: '', clientId: '', clientMatchStatus: 'none', paymentType: 'cash', markPaid: false, paymentMethod: 'cash',
       items: [{ id: nextBulkId(), rawProductName: '', productId: '', productMatchStatus: 'none', quantity: '', unitPrice: '' }],
     }]);
   };
