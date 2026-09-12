@@ -323,7 +323,7 @@ export default function Receivables() {
               <TableBody>
                 {pg.data.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8">
+                    <TableCell colSpan={11} className="text-center py-8">
                       <CheckCircle className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No hay ventas pendientes</p>
                     </TableCell>
