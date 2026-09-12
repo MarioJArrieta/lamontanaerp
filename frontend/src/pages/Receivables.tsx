@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, type FormEvent } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { toast } from 'sonner';
-import { CheckCircle, DollarSign, AlertTriangle, Clock, Search, ArrowUpDown, ArrowUp, ArrowDown, History, Eye, Package, FileText } from 'lucide-react';
+import { CheckCircle, DollarSign, AlertTriangle, Clock, Search, ArrowUpDown, ArrowUp, ArrowDown, History, Eye, Package, FileText, Coins, X } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import StatCard from '@/components/shared/StatCard';
@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Checkbox } from '@/components/ui/checkbox';
 import { SubmitButton } from '@/components/ui/submit-button';
 import api from '@/lib/api';
 import { bogotaDaysAgo, bogotaToday, sv } from '@/lib/helpers';
@@ -48,6 +49,20 @@ export default function Receivables() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailSale, setDetailSale] = useState<Sale | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkMethod, setBulkMethod] = useState('');
+  const [bulkSaving, setBulkSaving] = useState(false);
+
+  // Depura la seleccion cuando cambian las cuentas (tras cobrar), descartando ids que ya no existen.
+  useEffect(() => {
+    setSelectedIds(prev => {
+      if (prev.size === 0) return prev;
+      const selectable = new Set(sales.map(s => s.id));
+      const next = new Set([...prev].filter(id => selectable.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [sales]);
 
   const fetchData = () => {
     setLoading(true);
@@ -109,6 +124,44 @@ export default function Receivables() {
       toast.error(msg);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const toggleSelect = (id: string) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  const setManySelected = (ids: string[], on: boolean) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    for (const id of ids) { if (on) next.add(id); else next.delete(id); }
+    return next;
+  });
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleBulkPay = async (e: FormEvent) => {
+    e.preventDefault();
+    const ids = [...selectedIds];
+    if (ids.length === 0 || !bulkMethod) return;
+    setBulkSaving(true);
+    try {
+      const { data } = await api.post('/sales/bulk-pay', { sale_ids: ids, payment_method: bulkMethod });
+      const paidCount = data.count_paid ?? 0;
+      const skipped = data.skipped?.length ?? 0;
+      toast.success(
+        `${paidCount} cuenta${paidCount === 1 ? '' : 's'} cobrada${paidCount === 1 ? '' : 's'} · ${formatMoney(data.total_collected || 0)}`
+        + (skipped ? ` · ${skipped} omitida${skipped === 1 ? '' : 's'}` : ''),
+      );
+      setBulkOpen(false);
+      clearSelection();
+      fetchData();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
+      toast.error(msg);
+    } finally {
+      setBulkSaving(false);
     }
   };
 
@@ -211,6 +264,26 @@ export default function Receivables() {
         <StatCard title="Credito pendiente" value={formatMoney(creditSales.reduce((s, r) => s + Number(r.balance), 0))} icon={AlertTriangle} subtitle={`${creditSales.length} ventas`} />
       </div>
 
+      {selectedIds.size > 0 && (() => {
+        const selectedSales = sales.filter(s => selectedIds.has(s.id));
+        const totalBalance = selectedSales.reduce((sum, s) => sum + Number(s.balance || 0), 0);
+        return (
+          <div className="sticky top-2 z-10 mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 shadow-sm">
+            <Coins className="h-5 w-5 text-primary" />
+            <span className="text-sm font-medium">
+              {selectedIds.size} cuenta{selectedIds.size === 1 ? '' : 's'} seleccionada{selectedIds.size === 1 ? '' : 's'}
+              <span className="ml-2 text-muted-foreground">Saldo total: <span className="font-semibold text-foreground">{formatMoney(totalBalance)}</span></span>
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <Button size="sm" variant="ghost" onClick={clearSelection}><X className="mr-1 h-3.5 w-3.5" />Limpiar</Button>
+              <Button size="sm" onClick={() => { setBulkMethod(''); setBulkOpen(true); }}>
+                <Coins className="mr-1 h-3.5 w-3.5" />Cobrar seleccionadas
+              </Button>
+            </div>
+          </div>
+        );
+      })()}
+
       <Card>
         <CardContent className="p-0">
           {loading ? (
@@ -219,8 +292,25 @@ export default function Receivables() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    {(() => {
+                      const selectable = pg.data.map(s => s.id);
+                      const allSel = selectable.length > 0 && selectable.every(id => selectedIds.has(id));
+                      const someSel = selectable.some(id => selectedIds.has(id));
+                      return (
+                        <Checkbox
+                          aria-label="Seleccionar todo"
+                          disabled={selectable.length === 0}
+                          checked={allSel}
+                          indeterminate={someSel && !allSel}
+                          onChange={e => setManySelected(selectable, e.target.checked)}
+                        />
+                      );
+                    })()}
+                  </TableHead>
                   <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('date')}>Fecha<SortIcon col="date" /></TableHead>
                   <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('client')}>Cliente<SortIcon col="client" /></TableHead>
+                  <TableHead>Productos</TableHead>
                   <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('total')}>Total<SortIcon col="total" /></TableHead>
                   <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('paid')}>Abonado<SortIcon col="paid" /></TableHead>
                   <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('balance')}>Saldo<SortIcon col="balance" /></TableHead>
@@ -233,7 +323,7 @@ export default function Receivables() {
               <TableBody>
                 {pg.data.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8">
+                    <TableCell colSpan={10} className="text-center py-8">
                       <CheckCircle className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No hay ventas pendientes</p>
                     </TableCell>
@@ -242,9 +332,22 @@ export default function Receivables() {
                   const daysOld = Math.floor((Date.now() - new Date(s.date + 'T00:00:00').getTime()) / 86400000);
                   const overdue = daysOld > 7;
                   return (
-                  <TableRow key={s.id} className={overdue ? 'bg-red-50' : ''}>
+                  <TableRow key={s.id} className={selectedIds.has(s.id) ? 'bg-primary/5' : overdue ? 'bg-red-50' : ''}>
+                    <TableCell className="w-10">
+                      <Checkbox
+                        aria-label="Seleccionar cuenta"
+                        checked={selectedIds.has(s.id)}
+                        onChange={() => toggleSelect(s.id)}
+                      />
+                    </TableCell>
                     <TableCell>{s.date}</TableCell>
                     <TableCell className="font-medium">{clientMap.get(s.client_id)?.name || '-'}</TableCell>
+                    <TableCell className="text-xs">
+                      {(s.items || []).slice(0, 2).map((item, i) => (
+                        <span key={i}>{i > 0 && ', '}{item.quantity} {productMap.get(item.product_id)?.name || 'Producto'}</span>
+                      ))}
+                      {(s.items || []).length > 2 && <span className="text-muted-foreground"> +{s.items.length - 2} más</span>}
+                    </TableCell>
                     <TableCell className="font-semibold">{formatMoney(s.total)}</TableCell>
                     <TableCell>{Number(s.paid_amount) > 0 ? formatMoney(s.paid_amount) : '-'}</TableCell>
                     <TableCell className="text-destructive font-semibold">{formatMoney(s.balance)}</TableCell>
@@ -329,6 +432,70 @@ export default function Receivables() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Cobro masivo</DialogTitle></DialogHeader>
+          {(() => {
+            const selectedSales = sales.filter(s => selectedIds.has(s.id));
+            const totalBalance = selectedSales.reduce((sum, s) => sum + Number(s.balance || 0), 0);
+            const productTotals = new Map<string, number>();
+            for (const s of selectedSales) {
+              for (const item of s.items || []) {
+                productTotals.set(item.product_id, (productTotals.get(item.product_id) || 0) + Number(item.quantity));
+              }
+            }
+            const productRows = [...productTotals.entries()].sort((a, b) =>
+              (productMap.get(a[0])?.name || '').localeCompare(productMap.get(b[0])?.name || ''),
+            );
+            return (
+              <form onSubmit={handleBulkPay} className="space-y-4">
+                <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-1">
+                  <div className="flex justify-between"><span>Cuentas seleccionadas:</span><span className="font-semibold">{selectedSales.length}</span></div>
+                  <div className="flex justify-between"><span>Total a cobrar:</span><span className="font-bold text-primary">{formatMoney(totalBalance)}</span></div>
+                </div>
+
+                <Card>
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-2 mb-2 text-sm font-medium">
+                      <Package className="w-4 h-4" />Productos que se estan cobrando
+                    </div>
+                    {productRows.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Sin productos</p>
+                    ) : (
+                      <ul className="text-sm divide-y">
+                        {productRows.map(([productId, qty]) => (
+                          <li key={productId} className="flex justify-between py-1">
+                            <span>{productMap.get(productId)?.name || 'Producto'}</span>
+                            <span className="font-medium">{qty}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <p className="text-xs text-muted-foreground">Cada cuenta se cobra en su totalidad con el mismo medio de pago. Las cuentas ya pagadas se omiten.</p>
+                <div className="space-y-2">
+                  <Label>Medio de pago</Label>
+                  <Select value={bulkMethod || null} onValueChange={v => setBulkMethod(sv(v))}>
+                    <SelectTrigger><SelectValue placeholder="Seleccionar">{(v: string) => methodLabel[v] || 'Seleccionar'}</SelectValue></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Efectivo</SelectItem>
+                      <SelectItem value="transfer">Transferencia</SelectItem>
+                      <SelectItem value="nequi">Nequi</SelectItem>
+                      <SelectItem value="daviplata">Daviplata</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <SubmitButton loading={bulkSaving} className="w-full" disabled={!bulkMethod || selectedSales.length === 0}>
+                  Cobrar {selectedSales.length} cuenta{selectedSales.length === 1 ? '' : 's'} · {formatMoney(totalBalance)}
+                </SubmitButton>
+              </form>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
