@@ -848,7 +848,7 @@ export default function Sales() {
             </Dialog>
 
             <Dialog open={importOpen} onOpenChange={setImportOpen}>
-              <DialogContent className="w-[97vw] max-w-[1440px] max-h-[92vh] overflow-hidden flex flex-col">
+              <DialogContent className="w-[97vw] max-w-[1440px] sm:max-w-[1440px] max-h-[92vh] overflow-hidden flex flex-col">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <Upload className="w-5 h-5" />Crear ventas masivas desde JSON
