@@ -4,6 +4,7 @@ import { Pagination, paginate } from '@/components/ui/pagination';
 import { toast } from 'sonner';
 import { Plus, ShoppingCart, FileText, Package, Trash2, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Cloud, Lock, Download, Printer, Coins, X, Upload, AlertCircle, CheckCircle2, FileSpreadsheet } from 'lucide-react';
 import ExportColumnsDialog from '@/components/shared/ExportColumnsDialog';
+import SearchableSelect from '@/components/shared/SearchableSelect';
 import type { ExportColumn } from '@/lib/exportExcel';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -908,12 +909,12 @@ export default function Sales() {
                         <div className={`grid grid-cols-12 gap-3 items-end p-3 ${!isImportRowValid(row) ? 'bg-destructive/5' : row.clientMatchStatus === 'fallback' ? 'bg-amber-50' : 'bg-muted/20'}`}>
                           <div className="col-span-12 md:col-span-4 space-y-1">
                             <Label className="text-xs">Cliente</Label>
-                            <Select value={row.clientId || null} onValueChange={v => updateImportRow(row.id, { clientId: sv(v), clientMatchStatus: 'matched' })}>
-                              <SelectTrigger><SelectValue placeholder="Seleccionar cliente">{(v: string) => clientMap.get(v)?.name || 'Seleccionar cliente'}</SelectValue></SelectTrigger>
-                              <SelectContent>
-                                {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
+                            <SearchableSelect
+                              value={row.clientId}
+                              onChange={id => updateImportRow(row.id, { clientId: id, clientMatchStatus: 'matched' })}
+                              options={clients.map(c => ({ id: c.id, label: c.name, sublabel: c.delivery_zone || undefined }))}
+                              placeholder="Buscar cliente..."
+                            />
                             {row.clientMatchStatus === 'fallback' && <p className="text-xs text-amber-600">Sin match exacto para "{row.rawClientName}": se uso Consumidor Final, revisa</p>}
                             {row.clientMatchStatus === 'ambiguous' && <p className="text-xs text-destructive">Varios clientes coinciden con "{row.rawClientName}": elige uno</p>}
                             {row.clientMatchStatus === 'none' && row.rawClientName && <p className="text-xs text-destructive">Sin match para "{row.rawClientName}"</p>}
@@ -952,47 +953,37 @@ export default function Sales() {
                           </div>
                         </div>
 
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-1/2">Producto</TableHead>
-                              <TableHead className="w-28">Cantidad</TableHead>
-                              <TableHead className="w-36">Precio unitario</TableHead>
-                              <TableHead className="text-right">Subtotal</TableHead>
-                              <TableHead className="w-10"></TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {row.items.map(item => (
-                              <TableRow key={item.id}>
-                                <TableCell>
-                                  <Select value={item.productId || null} onValueChange={v => updateImportItem(row.id, item.id, { productId: sv(v), productMatchStatus: 'matched' })}>
-                                    <SelectTrigger><SelectValue placeholder="Seleccionar producto">{(v: string) => productMap.get(v)?.name || 'Seleccionar producto'}</SelectValue></SelectTrigger>
-                                    <SelectContent>
-                                      {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                                    </SelectContent>
-                                  </Select>
-                                  {item.productMatchStatus === 'ambiguous' && <p className="text-xs text-destructive mt-1">Varios productos coinciden: elige uno</p>}
-                                  {item.productMatchStatus === 'none' && item.rawProductName && <p className="text-xs text-destructive mt-1">Sin match para "{item.rawProductName}"</p>}
-                                </TableCell>
-                                <TableCell>
-                                  <Input type="number" min={1} value={item.quantity} onChange={e => updateImportItem(row.id, item.id, { quantity: e.target.value })} />
-                                </TableCell>
-                                <TableCell>
-                                  <Input type="number" min={0} value={item.unitPrice} onChange={e => updateImportItem(row.id, item.id, { unitPrice: e.target.value })} />
-                                </TableCell>
-                                <TableCell className="text-right font-medium whitespace-nowrap">
-                                  {formatMoney((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0))}
-                                </TableCell>
-                                <TableCell>
-                                  <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => removeImportItem(row.id, item.id)} disabled={row.items.length <= 1}>
-                                    <X className="w-3.5 h-3.5" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+                        <div className="px-3">
+                          <div className="grid grid-cols-[1fr_7rem_9rem_8rem_2.5rem] gap-2 text-xs font-medium text-foreground py-2 border-b">
+                            <span>Producto</span>
+                            <span>Cantidad</span>
+                            <span>Precio unitario</span>
+                            <span className="text-right">Subtotal</span>
+                            <span></span>
+                          </div>
+                          {row.items.map(item => (
+                            <div key={item.id} className="grid grid-cols-[1fr_7rem_9rem_8rem_2.5rem] gap-2 items-start py-2 border-b last:border-0">
+                              <div>
+                                <SearchableSelect
+                                  value={item.productId}
+                                  onChange={id => updateImportItem(row.id, item.id, { productId: id, productMatchStatus: 'matched' })}
+                                  options={products.map(p => ({ id: p.id, label: p.name }))}
+                                  placeholder="Buscar producto..."
+                                />
+                                {item.productMatchStatus === 'ambiguous' && <p className="text-xs text-destructive mt-1">Varios productos coinciden: elige uno</p>}
+                                {item.productMatchStatus === 'none' && item.rawProductName && <p className="text-xs text-destructive mt-1">Sin match para "{item.rawProductName}"</p>}
+                              </div>
+                              <Input type="number" min={1} value={item.quantity} onChange={e => updateImportItem(row.id, item.id, { quantity: e.target.value })} />
+                              <Input type="number" min={0} value={item.unitPrice} onChange={e => updateImportItem(row.id, item.id, { unitPrice: e.target.value })} />
+                              <span className="text-right font-medium whitespace-nowrap pt-1.5">
+                                {formatMoney((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0))}
+                              </span>
+                              <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => removeImportItem(row.id, item.id)} disabled={row.items.length <= 1}>
+                                <X className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
 
                         <div className="flex items-center justify-between px-3 py-2 border-t bg-muted/10">
                           <Button type="button" variant="ghost" size="sm" onClick={() => addImportItem(row.id)}>
