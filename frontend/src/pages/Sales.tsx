@@ -35,6 +35,7 @@ const SALE_IMPORT_EXAMPLE = {
     {
       date: '2026-09-10',
       client_name: 'Juan Perez',
+      client_cedula_nit: '1020304050',
       delivery_employee_name: 'Carlos Gomez',
       payment_type: 'credit',
       notes: 'Importado desde sistema anterior',
@@ -46,7 +47,10 @@ const SALE_IMPORT_EXAMPLE = {
     },
     {
       date: '2026-09-10',
-      client_name: 'Maria Rodriguez',
+      client_name: 'Cliente Nuevo Sin Registrar',
+      client_cedula_nit: '9998887770',
+      client_type: 'person',
+      client_phone: '3001234567',
       delivery_employee_name: 'Carlos Gomez',
       payment_type: 'cash',
       mark_paid: true,
@@ -708,8 +712,10 @@ export default function Sales() {
                 </DialogHeader>
                 <div className="space-y-4">
                   <p className="text-sm text-muted-foreground">
-                    Sube un archivo JSON con un arreglo <code>sales</code>. Cada venta identifica cliente,
-                    repartidor y productos por nombre (o por id/cedula si los conoces).
+                    Sube un archivo JSON con un arreglo <code>sales</code>. Cada venta identifica repartidor
+                    y productos por nombre (o por id/cedula si los conoces). Para el cliente, usa siempre
+                    <code> client_cedula_nit</code> junto con <code>client_name</code>: si la cedula ya existe
+                    se usa ese cliente, y si no existe se crea automaticamente.
                   </p>
                   <Button type="button" variant="outline" size="sm" onClick={downloadImportExample}>
                     <Download className="w-4 h-4 mr-2" />Descargar ejemplo

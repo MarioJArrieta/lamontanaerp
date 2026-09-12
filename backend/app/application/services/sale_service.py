@@ -6,6 +6,7 @@ from sqlalchemy import delete as sa_delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.security import verify_password
+from app.domain.aggregates.client import Client
 from app.domain.aggregates.delivery import Delivery
 from app.domain.aggregates.inventory import InventoryMovement
 from app.domain.aggregates.loyalty_transaction import LoyaltyTransaction
@@ -14,6 +15,7 @@ from app.domain.aggregates.sale import Sale
 from app.domain.aggregates.sale_item import SaleItem
 from app.domain.aggregates.user import User
 from app.domain.enums import (
+    ClientType,
     DeliveryStatus,
     InventoryMovementType,
     PaymentMethod,
@@ -350,27 +352,87 @@ class SaleService:
             except (ValueError, AttributeError, TypeError):
                 raise ValueError(f"{label} '{raw}' no es un id valido")
 
-        def resolve_client(entry: dict) -> uuid.UUID:
+        created_clients_this_entry: list[Client] = []
+
+        async def create_client(entry: dict) -> Client:
+            name = entry["client_name"]
+            cedula_nit = entry["client_cedula_nit"]
+            client_type_raw = entry.get("client_type", "person")
+            try:
+                client_type = ClientType(client_type_raw)
+            except ValueError:
+                valid = ", ".join(c.value for c in ClientType)
+                raise ValueError(f"client_type '{client_type_raw}' invalido, debe ser uno de: {valid}")
+            client = Client(
+                name=name,
+                client_type=client_type,
+                cedula_nit=cedula_nit,
+                address=entry.get("client_address"),
+                delivery_zone=entry.get("client_delivery_zone"),
+                phone=entry.get("client_phone"),
+                email=entry.get("client_email"),
+            )
+            self.session.add(client)
+            await self.session.flush()
+            # Registrar el cliente recien creado para que otras filas del mismo
+            # lote que lo referencien (misma cedula) lo encuentren sin duplicar.
+            clients_by_id[client.id] = client
+            clients_by_cedula[client.cedula_nit] = client
+            clients_by_name.setdefault(client.name.strip().lower(), []).append(client)
+            # Si esta misma entrada falla mas adelante, el SAVEPOINT revierte el
+            # INSERT: hay que poder deshacer tambien estos registros en cache.
+            created_clients_this_entry.append(client)
+            return client
+
+        def evict_created_clients_this_entry() -> None:
+            for client in created_clients_this_entry:
+                clients_by_id.pop(client.id, None)
+                clients_by_cedula.pop(client.cedula_nit, None)
+                name_key = client.name.strip().lower()
+                remaining = [c for c in clients_by_name.get(name_key, []) if c is not client]
+                if remaining:
+                    clients_by_name[name_key] = remaining
+                else:
+                    clients_by_name.pop(name_key, None)
+            created_clients_this_entry.clear()
+
+        async def resolve_client(entry: dict) -> uuid.UUID:
             if entry.get("client_id"):
                 client_id = parse_uuid(entry["client_id"], "client_id")
                 if client_id not in clients_by_id:
                     raise ValueError(f"Cliente {client_id} no existe")
                 return client_id
-            if entry.get("client_cedula_nit"):
-                client = clients_by_cedula.get(entry["client_cedula_nit"])
-                if not client:
-                    raise ValueError(f"Cliente con cedula/nit '{entry['client_cedula_nit']}' no existe")
-                return client.id
-            if entry.get("client_name"):
-                matches = clients_by_name.get(entry["client_name"].strip().lower(), [])
-                if not matches:
-                    raise ValueError(f"Cliente '{entry['client_name']}' no existe")
+
+            cedula_nit = entry.get("client_cedula_nit")
+            name = entry.get("client_name")
+
+            if cedula_nit:
+                client = clients_by_cedula.get(cedula_nit)
+                if client:
+                    return client.id
+                if name:
+                    # Cedula no registrada pero con nombre => se crea el cliente.
+                    created = await create_client(entry)
+                    return created.id
+                raise ValueError(
+                    f"Cliente con cedula/nit '{cedula_nit}' no existe "
+                    "(agrega client_name para crearlo automaticamente)"
+                )
+
+            if name:
+                matches = clients_by_name.get(name.strip().lower(), [])
+                if len(matches) == 1:
+                    return matches[0].id
                 if len(matches) > 1:
                     raise ValueError(
-                        f"Hay {len(matches)} clientes llamados '{entry['client_name']}', "
+                        f"Hay {len(matches)} clientes llamados '{name}', "
                         "usa client_id o client_cedula_nit para desambiguar"
                     )
-                return matches[0].id
+                raise ValueError(
+                    f"Cliente '{name}' no existe "
+                    "(agrega client_cedula_nit para crearlo automaticamente)"
+                )
+
             raise ValueError("Cada venta requiere client_id, client_cedula_nit o client_name")
 
         def resolve_employee(entry: dict) -> uuid.UUID:
@@ -467,13 +529,14 @@ class SaleService:
             if not isinstance(entry, dict):
                 errors.append((index, "Cada venta debe ser un objeto JSON"))
                 continue
+            created_clients_this_entry.clear()
             try:
                 async with self.session.begin_nested():
                     sale_date = parse_date(entry)
                     payment_type = parse_payment_type(entry)
                     mark_paid = bool(entry.get("mark_paid", False))
                     payment_method = parse_payment_method(entry)
-                    client_id = resolve_client(entry)
+                    client_id = await resolve_client(entry)
                     employee_id = resolve_employee(entry)
                     raw_items = entry.get("items")
                     if not isinstance(raw_items, list) or not raw_items:
@@ -498,9 +561,11 @@ class SaleService:
                         payment_method=payment_method,
                     )
             except ValueError as e:
+                evict_created_clients_this_entry()
                 errors.append((index, str(e)))
                 continue
             except Exception:
+                evict_created_clients_this_entry()
                 errors.append((index, "Error inesperado al crear la venta"))
                 continue
             created.append(sale)
