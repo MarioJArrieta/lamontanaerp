@@ -25,44 +25,53 @@ function formatMoney(val: string | number) {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(Number(val));
 }
 
-interface SaleImportResult {
-  count_created: number;
-  count_errors: number;
-  total_amount: string | number;
-  errors: { index: number; reason: string }[];
+type MatchStatus = 'matched' | 'ambiguous' | 'fallback' | 'none';
+
+interface BulkImportItem {
+  id: string;
+  rawProductName: string;
+  productId: string;
+  productMatchStatus: MatchStatus;
+  quantity: string;
+  unitPrice: string;
+}
+
+interface BulkImportRow {
+  id: string;
+  rawClientName: string;
+  clientId: string;
+  clientMatchStatus: MatchStatus;
+  paymentType: 'cash' | 'credit';
+  markPaid: boolean;
+  paymentMethod: string;
+  items: BulkImportItem[];
 }
 
 const SALE_IMPORT_EXAMPLE = {
   sales: [
     {
-      date: '2026-09-10',
-      client_name: 'Juan Perez',
-      client_cedula_nit: '1020304050',
-      delivery_employee_name: 'Carlos Gomez',
+      client: 'Juan Perez',
       payment_type: 'credit',
-      notes: 'Importado desde sistema anterior',
       mark_paid: false,
       items: [
-        { product_name: 'Bolsa de agua 6L', quantity: 20 },
-        { product_name: 'Botellon 20L', quantity: 5, unit_price: 8000 },
+        { product: 'Bolsa de agua 6L', quantity: 20, unit_price: 3000 },
+        { product: 'Botellon 20L', quantity: 5, unit_price: 8000 },
       ],
     },
     {
-      date: '2026-09-10',
-      client_name: 'Cliente Nuevo Sin Registrar',
-      client_cedula_nit: '9998887770',
-      client_type: 'person',
-      client_phone: '3001234567',
-      delivery_employee_name: 'Carlos Gomez',
+      client: 'Maria Rodriguez',
       payment_type: 'cash',
       mark_paid: true,
       payment_method: 'transfer',
       items: [
-        { product_name: 'Bolsa de agua 6L', quantity: 10 },
+        { product: 'Bolsa de agua 6L', quantity: 10, unit_price: 3000 },
       ],
     },
   ],
 };
+
+let bulkImportSeq = 0;
+const nextBulkId = () => `bi-${++bulkImportSeq}`;
 
 const statusLabel: Record<string, string> = { pending: 'Pendiente', partial: 'Parcial', paid: 'Pagada' };
 const statusVariant = (s: string) => s === 'paid' ? 'default' as const : s === 'partial' ? 'outline' as const : 'secondary' as const;
@@ -102,11 +111,14 @@ export default function Sales() {
   const [bulkMethod, setBulkMethod] = useState('');
   const [bulkSaving, setBulkSaving] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [importEntries, setImportEntries] = useState<Record<string, unknown>[] | null>(null);
+  const [importDate, setImportDate] = useState('');
+  const [importEmployeeId, setImportEmployeeId] = useState('');
+  const [importRows, setImportRows] = useState<BulkImportRow[]>([]);
   const [importFileName, setImportFileName] = useState('');
   const [importParseError, setImportParseError] = useState('');
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<SaleImportResult | null>(null);
+  const [importSaving, setImportSaving] = useState(false);
+  const [importProgress, setImportProgress] = useState({ done: 0, total: 0 });
+  const [importResults, setImportResults] = useState<{ rowId: string; ok: boolean; reason?: string }[] | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
 
   // Depura la seleccion cuando cambian las ventas (tras cobrar/eliminar):
@@ -292,10 +304,12 @@ export default function Sales() {
   };
 
   const openImportDialog = () => {
-    setImportEntries(null);
+    setImportDate(today);
+    setImportEmployeeId('');
+    setImportRows([]);
     setImportFileName('');
     setImportParseError('');
-    setImportResult(null);
+    setImportResults(null);
     setImportOpen(true);
   };
 
@@ -309,13 +323,36 @@ export default function Sales() {
     URL.revokeObjectURL(url);
   };
 
+  // Coincidencia parcial (ILIKE %texto%) sin distinguir mayusculas/tildes exactas.
+  // Coincidencia parcial (ILIKE %texto%). Si hay mas de una coincidencia no se
+  // autoselecciona ninguna (queda "ambiguous"): el usuario debe elegir a mano
+  // en la tabla para no arriesgarse a facturarle a la persona equivocada.
+  const findClientMatch = (name: string): { id: string; status: MatchStatus } => {
+    const q = name.trim().toLowerCase();
+    if (!q) return { id: '', status: 'none' };
+    const matches = clients.filter(c => c.name.toLowerCase().includes(q));
+    if (matches.length === 1) return { id: matches[0].id, status: 'matched' };
+    if (matches.length > 1) return { id: '', status: 'ambiguous' };
+    const fallback = clients.find(c => /consumidor\s*final/i.test(c.name));
+    return fallback ? { id: fallback.id, status: 'fallback' } : { id: '', status: 'none' };
+  };
+
+  const findProductMatch = (name: string): { id: string; status: MatchStatus } => {
+    const q = name.trim().toLowerCase();
+    if (!q) return { id: '', status: 'none' };
+    const matches = products.filter(p => p.name.toLowerCase().includes(q));
+    if (matches.length === 1) return { id: matches[0].id, status: 'matched' };
+    if (matches.length > 1) return { id: '', status: 'ambiguous' };
+    return { id: '', status: 'none' };
+  };
+
   const handleImportFile = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    setImportResult(null);
+    setImportResults(null);
     setImportParseError('');
-    setImportEntries(null);
+    setImportRows([]);
     setImportFileName(file.name);
     const reader = new FileReader();
     reader.onload = () => {
@@ -326,7 +363,33 @@ export default function Sales() {
           setImportParseError('El JSON debe tener un arreglo "sales" con al menos una venta.');
           return;
         }
-        setImportEntries(sales);
+        const rows: BulkImportRow[] = sales.map((s: Record<string, unknown>) => {
+          const rawClientName = typeof s.client === 'string' ? s.client : '';
+          const rawItems = Array.isArray(s.items) ? s.items : [];
+          const clientMatch = findClientMatch(rawClientName);
+          return {
+            id: nextBulkId(),
+            rawClientName,
+            clientId: clientMatch.id,
+            clientMatchStatus: clientMatch.status,
+            paymentType: s.payment_type === 'credit' ? 'credit' : 'cash',
+            markPaid: s.mark_paid === true,
+            paymentMethod: typeof s.payment_method === 'string' ? s.payment_method : '',
+            items: rawItems.map((it: Record<string, unknown>) => {
+              const rawProductName = typeof it.product === 'string' ? it.product : '';
+              const productMatch = findProductMatch(rawProductName);
+              return {
+                id: nextBulkId(),
+                rawProductName,
+                productId: productMatch.id,
+                productMatchStatus: productMatch.status,
+                quantity: it.quantity != null ? String(it.quantity) : '',
+                unitPrice: it.unit_price != null ? String(it.unit_price) : '',
+              };
+            }),
+          };
+        });
+        setImportRows(rows);
       } catch {
         setImportParseError('El archivo no es un JSON valido.');
       }
@@ -335,31 +398,85 @@ export default function Sales() {
     reader.readAsText(file);
   };
 
+  const addImportRow = () => {
+    setImportRows(prev => [...prev, {
+      id: nextBulkId(), rawClientName: '', clientId: '', clientMatchStatus: 'none', paymentType: 'cash', markPaid: false, paymentMethod: '',
+      items: [{ id: nextBulkId(), rawProductName: '', productId: '', productMatchStatus: 'none', quantity: '', unitPrice: '' }],
+    }]);
+  };
+
+  const removeImportRow = (rowId: string) => setImportRows(prev => prev.filter(r => r.id !== rowId));
+
+  const updateImportRow = (rowId: string, patch: Partial<BulkImportRow>) => {
+    setImportRows(prev => prev.map(r => r.id === rowId ? { ...r, ...patch } : r));
+  };
+
+  const addImportItem = (rowId: string) => {
+    setImportRows(prev => prev.map(r => r.id === rowId ? {
+      ...r, items: [...r.items, { id: nextBulkId(), rawProductName: '', productId: '', productMatchStatus: 'none', quantity: '', unitPrice: '' }],
+    } : r));
+  };
+
+  const removeImportItem = (rowId: string, itemId: string) => {
+    setImportRows(prev => prev.map(r => r.id === rowId ? { ...r, items: r.items.filter(i => i.id !== itemId) } : r));
+  };
+
+  const updateImportItem = (rowId: string, itemId: string, patch: Partial<BulkImportItem>) => {
+    setImportRows(prev => prev.map(r => r.id === rowId
+      ? { ...r, items: r.items.map(i => i.id === itemId ? { ...i, ...patch } : i) }
+      : r));
+  };
+
+  const isImportRowValid = (row: BulkImportRow) => {
+    if (!row.clientId) return false;
+    if (row.markPaid && !row.paymentMethod) return false;
+    if (row.items.length === 0) return false;
+    return row.items.every(i => i.productId && Number(i.quantity) > 0 && i.unitPrice !== '' && Number(i.unitPrice) >= 0);
+  };
+
   const handleConfirmImport = async () => {
-    if (!importEntries || importEntries.length === 0) return;
-    setImporting(true);
-    try {
-      const { data } = await api.post('/sales/import', { sales: importEntries });
-      setImportResult(data);
-      if (data.count_created > 0) {
-        toast.success(`${data.count_created} venta${data.count_created === 1 ? '' : 's'} importada${data.count_created === 1 ? '' : 's'}`);
-        fetchData();
+    if (!importDate || !importEmployeeId || importRows.length === 0) return;
+    setImportSaving(true);
+    setImportProgress({ done: 0, total: importRows.length });
+    const results: { rowId: string; ok: boolean; reason?: string }[] = [];
+    for (const row of importRows) {
+      if (!isImportRowValid(row)) {
+        results.push({ rowId: row.id, ok: false, reason: 'Fila incompleta: revisa cliente, items, cantidad, precio o medio de pago' });
+        setImportProgress(p => ({ ...p, done: p.done + 1 }));
+        continue;
       }
-      if (data.count_errors > 0) {
-        toast.error(`${data.count_errors} venta${data.count_errors === 1 ? '' : 's'} con errores`);
+      try {
+        await api.post('/sales', {
+          date: importDate,
+          client_id: row.clientId,
+          delivery_employee_id: importEmployeeId,
+          payment_type: row.paymentType,
+          mark_paid: row.markPaid,
+          payment_method: row.markPaid ? row.paymentMethod : null,
+          items: row.items.map(i => ({
+            product_id: i.productId,
+            quantity: Number(i.quantity),
+            unit_price: Number(i.unitPrice),
+          })),
+        });
+        results.push({ rowId: row.id, ok: true });
+      } catch (err: unknown) {
+        const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
+        results.push({ rowId: row.id, ok: false, reason: msg });
       }
-    } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
-      let msg = 'Error al importar';
-      if (typeof detail === 'string') {
-        msg = detail;
-      } else if (Array.isArray(detail)) {
-        msg = detail.map((d: { loc?: unknown[]; msg?: string }) => d.msg || JSON.stringify(d)).join('; ');
-      }
-      toast.error(msg);
-    } finally {
-      setImporting(false);
+      setImportProgress(p => ({ ...p, done: p.done + 1 }));
     }
+    setImportResults(results);
+    const okCount = results.filter(r => r.ok).length;
+    const failCount = results.length - okCount;
+    if (okCount > 0) {
+      toast.success(`${okCount} venta${okCount === 1 ? '' : 's'} creada${okCount === 1 ? '' : 's'}`);
+      fetchData();
+    }
+    if (failCount > 0) {
+      toast.error(`${failCount} venta${failCount === 1 ? '' : 's'} con errores`);
+    }
+    setImportSaving(false);
   };
 
   const openDeleteDialog = (saleId: string) => {
@@ -732,26 +849,46 @@ export default function Sales() {
             </Dialog>
 
             <Dialog open={importOpen} onOpenChange={setImportOpen}>
-              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+              <DialogContent className="w-[95vw] max-w-5xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
-                    <Upload className="w-5 h-5" />Importar ventas desde JSON
+                    <Upload className="w-5 h-5" />Crear ventas masivas desde JSON
                   </DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   <p className="text-sm text-muted-foreground">
-                    Sube un archivo JSON con un arreglo <code>sales</code>. Cada venta identifica repartidor
-                    y productos por nombre (o por id/cedula si los conoces). Para el cliente, usa siempre
-                    <code> client_cedula_nit</code> junto con <code>client_name</code>: si la cedula ya existe
-                    se usa ese cliente, y si no existe se crea automaticamente.
+                    Una sola fecha y un solo repartidor aplican a todas las ventas. El JSON solo trae
+                    cliente, items (producto, cantidad, precio) y el medio de pago de cada venta. El
+                    cliente y el producto se buscan por coincidencia de nombre; revisa y corrige la
+                    tabla antes de crear.
                   </p>
-                  <Button type="button" variant="outline" size="sm" onClick={downloadImportExample}>
-                    <Download className="w-4 h-4 mr-2" />Descargar ejemplo
-                  </Button>
-                  <div className="space-y-2">
-                    <Label>Archivo JSON</Label>
-                    <Input type="file" accept=".json,application/json" onChange={handleImportFile} />
-                    {importFileName && <p className="text-xs text-muted-foreground">{importFileName}</p>}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Fecha (aplica a todas)</Label>
+                      <Input type="date" value={importDate} onChange={e => setImportDate(e.target.value)} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Repartidor (aplica a todas)</Label>
+                      <Select value={importEmployeeId || null} onValueChange={v => setImportEmployeeId(sv(v))}>
+                        <SelectTrigger><SelectValue placeholder="Seleccionar">{(v: string) => deliveryEmployees.find(e => e.id === v)?.name || 'Seleccionar'}</SelectValue></SelectTrigger>
+                        <SelectContent>
+                          {deliveryEmployees.map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button type="button" variant="outline" size="sm" onClick={downloadImportExample}>
+                      <Download className="w-4 h-4 mr-2" />Descargar ejemplo
+                    </Button>
+                    <Label className="text-sm">Cargar JSON</Label>
+                    <Input type="file" accept=".json,application/json" onChange={handleImportFile} className="w-auto" />
+                    {importFileName && <span className="text-xs text-muted-foreground">{importFileName}</span>}
+                    <Button type="button" variant="ghost" size="sm" onClick={addImportRow} className="ml-auto">
+                      <Plus className="w-4 h-4 mr-1" />Agregar cliente
+                    </Button>
                   </div>
 
                   {importParseError && (
@@ -760,41 +897,124 @@ export default function Sales() {
                     </div>
                   )}
 
-                  {importEntries && !importResult && (
-                    <div className="p-3 bg-muted/50 rounded-lg text-sm">
-                      Se detectaron <span className="font-semibold">{importEntries.length}</span> venta{importEntries.length === 1 ? '' : 's'} en el archivo.
+                  {importRows.length > 0 && (
+                    <div className="space-y-3">
+                      {importRows.map(row => {
+                        const rowResult = importResults?.find(r => r.rowId === row.id);
+                        const rowTotal = row.items.reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.unitPrice) || 0), 0);
+                        return (
+                          <div key={row.id} className={`border rounded-lg p-3 space-y-3 ${!isImportRowValid(row) ? 'border-destructive/40 bg-destructive/5' : row.clientMatchStatus === 'fallback' ? 'border-amber-400/50 bg-amber-50' : ''}`}>
+                            <div className="flex flex-wrap items-end gap-3">
+                              <div className="space-y-1 flex-1 min-w-48">
+                                <Label className="text-xs">
+                                  Cliente
+                                  {row.clientMatchStatus === 'fallback' && <span className="text-amber-600"> (sin match exacto para "{row.rawClientName}", se uso Consumidor Final: revisa)</span>}
+                                  {row.clientMatchStatus === 'ambiguous' && <span className="text-destructive"> (varios clientes coinciden con "{row.rawClientName}", elige uno)</span>}
+                                  {row.clientMatchStatus === 'none' && row.rawClientName && <span className="text-destructive"> (sin match: "{row.rawClientName}")</span>}
+                                </Label>
+                                <Select value={row.clientId || null} onValueChange={v => updateImportRow(row.id, { clientId: sv(v), clientMatchStatus: 'matched' })}>
+                                  <SelectTrigger><SelectValue placeholder="Seleccionar cliente">{(v: string) => clientMap.get(v)?.name || 'Seleccionar cliente'}</SelectValue></SelectTrigger>
+                                  <SelectContent>
+                                    {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Tipo de pago</Label>
+                                <div className="flex gap-1">
+                                  <Button type="button" size="sm" variant={row.paymentType === 'cash' ? 'default' : 'outline'} onClick={() => updateImportRow(row.id, { paymentType: 'cash' })}>Contado</Button>
+                                  <Button type="button" size="sm" variant={row.paymentType === 'credit' ? 'default' : 'outline'} onClick={() => updateImportRow(row.id, { paymentType: 'credit' })}>Credito</Button>
+                                </div>
+                              </div>
+                              <label className="flex items-center gap-2 text-sm pb-1.5">
+                                <Checkbox checked={row.markPaid} onChange={e => updateImportRow(row.id, { markPaid: e.target.checked })} />
+                                Cobrada
+                              </label>
+                              {row.markPaid && (
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Medio de pago</Label>
+                                  <Select value={row.paymentMethod || null} onValueChange={v => updateImportRow(row.id, { paymentMethod: sv(v) })}>
+                                    <SelectTrigger className="w-36"><SelectValue placeholder="Seleccionar">{(v: string) => methodLabel[v] || 'Seleccionar'}</SelectValue></SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="cash">Efectivo</SelectItem>
+                                      <SelectItem value="transfer">Transferencia</SelectItem>
+                                      <SelectItem value="nequi">Nequi</SelectItem>
+                                      <SelectItem value="daviplata">Daviplata</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              )}
+                              <Button type="button" variant="ghost" size="sm" className="text-destructive ml-auto" onClick={() => removeImportRow(row.id)}>
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              {row.items.map(item => (
+                                <div key={item.id} className="flex flex-wrap items-end gap-2">
+                                  <div className="space-y-1 flex-1 min-w-40">
+                                    {item === row.items[0] && (
+                                      <Label className="text-xs">
+                                        Producto
+                                        {item.productMatchStatus === 'ambiguous' && <span className="text-destructive"> (varios productos coinciden, elige uno)</span>}
+                                        {item.productMatchStatus === 'none' && item.rawProductName && <span className="text-destructive"> (sin match)</span>}
+                                      </Label>
+                                    )}
+                                    <Select value={item.productId || null} onValueChange={v => updateImportItem(row.id, item.id, { productId: sv(v), productMatchStatus: 'matched' })}>
+                                      <SelectTrigger><SelectValue placeholder="Seleccionar producto">{(v: string) => productMap.get(v)?.name || 'Seleccionar producto'}</SelectValue></SelectTrigger>
+                                      <SelectContent>
+                                        {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-1 w-24">
+                                    {item === row.items[0] && <Label className="text-xs">Cantidad</Label>}
+                                    <Input type="number" min={1} value={item.quantity} onChange={e => updateImportItem(row.id, item.id, { quantity: e.target.value })} />
+                                  </div>
+                                  <div className="space-y-1 w-32">
+                                    {item === row.items[0] && <Label className="text-xs">Precio unitario</Label>}
+                                    <Input type="number" min={0} value={item.unitPrice} onChange={e => updateImportItem(row.id, item.id, { unitPrice: e.target.value })} />
+                                  </div>
+                                  <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => removeImportItem(row.id, item.id)} disabled={row.items.length <= 1}>
+                                    <X className="w-3.5 h-3.5" />
+                                  </Button>
+                                </div>
+                              ))}
+                              <Button type="button" variant="ghost" size="sm" onClick={() => addImportItem(row.id)}>
+                                <Plus className="w-3.5 h-3.5 mr-1" />Agregar item
+                              </Button>
+                            </div>
+
+                            <div className="flex items-center justify-between text-sm text-muted-foreground border-t pt-2">
+                              <span>Total estimado: <span className="font-medium text-foreground">{formatMoney(rowTotal)}</span></span>
+                              {rowResult && (
+                                rowResult.ok
+                                  ? <span className="flex items-center gap-1 text-green-600"><CheckCircle2 className="w-3.5 h-3.5" />Creada</span>
+                                  : <span className="flex items-center gap-1 text-destructive"><AlertCircle className="w-3.5 h-3.5" />{rowResult.reason}</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 
-                  {importResult && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 p-3 bg-green-50 text-green-700 rounded-lg text-sm">
-                        <CheckCircle2 className="w-4 h-4 shrink-0" />
-                        {importResult.count_created} venta{importResult.count_created === 1 ? '' : 's'} importada{importResult.count_created === 1 ? '' : 's'} · {formatMoney(importResult.total_amount)}
-                      </div>
-                      {importResult.errors.length > 0 && (
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium text-destructive">{importResult.errors.length} con errores:</p>
-                          <ul className="text-xs space-y-1 max-h-40 overflow-y-auto">
-                            {importResult.errors.map(err => (
-                              <li key={err.index} className="flex items-start gap-2 p-2 bg-destructive/10 text-destructive rounded">
-                                <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                                <span>Venta #{err.index + 1}: {err.reason}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                  {importRows.length > 0 && (
+                    <div className="p-3 bg-muted/50 rounded-lg text-sm flex justify-between">
+                      <span>{importRows.length} venta{importRows.length === 1 ? '' : 's'} · {importRows.filter(isImportRowValid).length} lista{importRows.filter(isImportRowValid).length === 1 ? '' : 's'} para crear</span>
+                      <span className="font-semibold">{formatMoney(importRows.reduce((sum, r) => sum + r.items.reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.unitPrice) || 0), 0), 0))}</span>
                     </div>
                   )}
 
                   <SubmitButton
-                    loading={importing}
+                    loading={importSaving}
                     className="w-full"
-                    disabled={!importEntries || importEntries.length === 0}
+                    disabled={!importDate || !importEmployeeId || importRows.length === 0}
                     onClick={handleConfirmImport}
                   >
-                    Importar {importEntries?.length ?? 0} venta{importEntries?.length === 1 ? '' : 's'}
+                    {importSaving
+                      ? `Creando ${importProgress.done}/${importProgress.total}...`
+                      : `Crear ${importRows.length} venta${importRows.length === 1 ? '' : 's'}`}
                   </SubmitButton>
                 </div>
               </DialogContent>
