@@ -430,6 +430,26 @@ class SaleDeleteConfirm(BaseModel):
     admin_password: str
 
 
+class SaleImportRequest(BaseModel):
+    # Cada venta se recibe como JSON libre (no un modelo estricto): asi una
+    # entrada mal formada no tumba el request completo con un 422 generico.
+    # sale_service.import_sales valida y reporta cada entrada por separado.
+    sales: list[dict] = Field(..., min_length=1)
+
+
+class SaleImportError(BaseModel):
+    index: int
+    reason: str
+
+
+class SaleImportResponse(BaseModel):
+    created: list[SaleResponse] = []
+    errors: list[SaleImportError] = []
+    count_created: int = 0
+    count_errors: int = 0
+    total_amount: Decimal = Decimal("0")
+
+
 # ---- Receivable ----
 class ReceivableResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, timedelta
+from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -13,6 +14,9 @@ from app.api.v1.schemas import (
     SaleBulkPaySkipped,
     SaleCreate,
     SaleDeleteConfirm,
+    SaleImportError,
+    SaleImportRequest,
+    SaleImportResponse,
     SaleMarkPaid,
     SaleResponse,
     SaleUpdate,
@@ -155,6 +159,26 @@ async def bulk_mark_paid(
         skipped=[SaleBulkPaySkipped(sale_id=sid, reason=reason) for sid, reason in skipped],
         count_paid=len(paid),
         total_collected=total_collected,
+    )
+
+
+@router.post("/import", response_model=SaleImportResponse)
+async def import_sales(
+    body: SaleImportRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: AdminOrSecretary,
+):
+    """Carga masiva de ventas desde un JSON. Cada venta identifica cliente,
+    repartidor y productos por id, cedula/nit o nombre. Las entradas
+    invalidas se reportan en 'errors' sin bloquear las demas."""
+    service = SaleService(db)
+    created, errors = await service.import_sales(body.sales)
+    return SaleImportResponse(
+        created=[SaleResponse.model_validate(s) for s in created],
+        errors=[SaleImportError(index=i, reason=reason) for i, reason in errors],
+        count_created=len(created),
+        count_errors=len(errors),
+        total_amount=sum((s.total for s in created), Decimal("0")),
     )
 
 

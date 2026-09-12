@@ -315,6 +315,197 @@ class SaleService:
             total_collected += collected
         return paid, skipped, total_collected
 
+    async def import_sales(
+        self, entries: list[dict]
+    ) -> tuple[list[Sale], list[tuple[int, str]]]:
+        """Crea muchas ventas de una vez desde un JSON de importacion. Cada
+        entrada identifica cliente/repartidor/producto por id, cedula o
+        nombre (ver resolve_* abajo). Las entradas invalidas se omiten sin
+        romper el lote; las validas se crean con la misma logica que una
+        venta individual (create_sale). Devuelve (ventas_creadas, errores[(indice, motivo)])."""
+        clients = await self.client_repo.get_all(active_only=False)
+        employees = await self.employee_repo.get_all(active_only=False)
+        products = await self.product_repo.get_all(active_only=False)
+
+        clients_by_id = {c.id: c for c in clients}
+        clients_by_cedula = {c.cedula_nit: c for c in clients}
+        clients_by_name: dict[str, list] = {}
+        for c in clients:
+            clients_by_name.setdefault(c.name.strip().lower(), []).append(c)
+
+        employees_by_id = {e.id: e for e in employees}
+        employees_by_cedula = {e.cedula: e for e in employees}
+        employees_by_name: dict[str, list] = {}
+        for e in employees:
+            employees_by_name.setdefault(e.name.strip().lower(), []).append(e)
+
+        products_by_id = {p.id: p for p in products}
+        products_by_name: dict[str, list] = {}
+        for p in products:
+            products_by_name.setdefault(p.name.strip().lower(), []).append(p)
+
+        def parse_uuid(raw: object, label: str) -> uuid.UUID:
+            try:
+                return uuid.UUID(str(raw))
+            except (ValueError, AttributeError, TypeError):
+                raise ValueError(f"{label} '{raw}' no es un id valido")
+
+        def resolve_client(entry: dict) -> uuid.UUID:
+            if entry.get("client_id"):
+                client_id = parse_uuid(entry["client_id"], "client_id")
+                if client_id not in clients_by_id:
+                    raise ValueError(f"Cliente {client_id} no existe")
+                return client_id
+            if entry.get("client_cedula_nit"):
+                client = clients_by_cedula.get(entry["client_cedula_nit"])
+                if not client:
+                    raise ValueError(f"Cliente con cedula/nit '{entry['client_cedula_nit']}' no existe")
+                return client.id
+            if entry.get("client_name"):
+                matches = clients_by_name.get(entry["client_name"].strip().lower(), [])
+                if not matches:
+                    raise ValueError(f"Cliente '{entry['client_name']}' no existe")
+                if len(matches) > 1:
+                    raise ValueError(
+                        f"Hay {len(matches)} clientes llamados '{entry['client_name']}', "
+                        "usa client_id o client_cedula_nit para desambiguar"
+                    )
+                return matches[0].id
+            raise ValueError("Cada venta requiere client_id, client_cedula_nit o client_name")
+
+        def resolve_employee(entry: dict) -> uuid.UUID:
+            if entry.get("delivery_employee_id"):
+                employee_id = parse_uuid(entry["delivery_employee_id"], "delivery_employee_id")
+                if employee_id not in employees_by_id:
+                    raise ValueError(f"Repartidor {employee_id} no existe")
+                return employee_id
+            if entry.get("delivery_employee_cedula"):
+                employee = employees_by_cedula.get(entry["delivery_employee_cedula"])
+                if not employee:
+                    raise ValueError(f"Repartidor con cedula '{entry['delivery_employee_cedula']}' no existe")
+                return employee.id
+            if entry.get("delivery_employee_name"):
+                matches = employees_by_name.get(entry["delivery_employee_name"].strip().lower(), [])
+                if not matches:
+                    raise ValueError(f"Repartidor '{entry['delivery_employee_name']}' no existe")
+                if len(matches) > 1:
+                    raise ValueError(
+                        f"Hay {len(matches)} repartidores llamados '{entry['delivery_employee_name']}', "
+                        "usa delivery_employee_id o delivery_employee_cedula para desambiguar"
+                    )
+                return matches[0].id
+            raise ValueError(
+                "Cada venta requiere delivery_employee_id, delivery_employee_cedula o delivery_employee_name"
+            )
+
+        def resolve_product(item: dict) -> uuid.UUID:
+            if item.get("product_id"):
+                product_id = parse_uuid(item["product_id"], "product_id")
+                if product_id not in products_by_id:
+                    raise ValueError(f"Producto {product_id} no existe")
+                return product_id
+            if item.get("product_name"):
+                matches = products_by_name.get(item["product_name"].strip().lower(), [])
+                if not matches:
+                    raise ValueError(f"Producto '{item['product_name']}' no existe")
+                if len(matches) > 1:
+                    raise ValueError(
+                        f"Hay {len(matches)} productos llamados '{item['product_name']}', usa product_id"
+                    )
+                return matches[0].id
+            raise ValueError("Cada item requiere product_id o product_name")
+
+        def parse_date(entry: dict) -> date:
+            raw = entry.get("date")
+            if not raw:
+                raise ValueError("La venta requiere 'date' (formato AAAA-MM-DD)")
+            try:
+                return date.fromisoformat(str(raw))
+            except ValueError:
+                raise ValueError(f"Fecha '{raw}' invalida, usa el formato AAAA-MM-DD")
+
+        def parse_payment_type(entry: dict) -> PaymentType:
+            raw = entry.get("payment_type")
+            try:
+                return PaymentType(raw)
+            except ValueError:
+                valid = ", ".join(p.value for p in PaymentType)
+                raise ValueError(f"payment_type '{raw}' invalido, debe ser uno de: {valid}")
+
+        def parse_payment_method(entry: dict) -> PaymentMethod | None:
+            raw = entry.get("payment_method")
+            if raw is None:
+                return None
+            try:
+                return PaymentMethod(raw)
+            except ValueError:
+                valid = ", ".join(p.value for p in PaymentMethod)
+                raise ValueError(f"payment_method '{raw}' invalido, debe ser uno de: {valid}")
+
+        def parse_quantity(item: dict) -> int:
+            raw = item.get("quantity")
+            try:
+                quantity = int(raw)
+            except (TypeError, ValueError):
+                raise ValueError(f"quantity '{raw}' invalida, debe ser un numero entero")
+            if quantity <= 0:
+                raise ValueError("quantity debe ser mayor a 0")
+            return quantity
+
+        def parse_unit_price(item: dict) -> Decimal | None:
+            raw = item.get("unit_price")
+            if raw is None:
+                return None
+            try:
+                return Decimal(str(raw))
+            except Exception:
+                raise ValueError(f"unit_price '{raw}' invalido")
+
+        created: list[Sale] = []
+        errors: list[tuple[int, str]] = []
+        for index, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                errors.append((index, "Cada venta debe ser un objeto JSON"))
+                continue
+            try:
+                async with self.session.begin_nested():
+                    sale_date = parse_date(entry)
+                    payment_type = parse_payment_type(entry)
+                    mark_paid = bool(entry.get("mark_paid", False))
+                    payment_method = parse_payment_method(entry)
+                    client_id = resolve_client(entry)
+                    employee_id = resolve_employee(entry)
+                    raw_items = entry.get("items")
+                    if not isinstance(raw_items, list) or not raw_items:
+                        raise ValueError("La venta requiere una lista 'items' con al menos un producto")
+                    items = []
+                    for item in raw_items:
+                        if not isinstance(item, dict):
+                            raise ValueError("Cada item debe ser un objeto JSON")
+                        items.append({
+                            "product_id": resolve_product(item),
+                            "quantity": parse_quantity(item),
+                            "unit_price": parse_unit_price(item),
+                        })
+                    sale = await self.create_sale(
+                        sale_date=sale_date,
+                        client_id=client_id,
+                        delivery_employee_id=employee_id,
+                        items=items,
+                        payment_type=payment_type,
+                        notes=entry.get("notes"),
+                        mark_paid=mark_paid,
+                        payment_method=payment_method,
+                    )
+            except ValueError as e:
+                errors.append((index, str(e)))
+                continue
+            except Exception:
+                errors.append((index, "Error inesperado al crear la venta"))
+                continue
+            created.append(sale)
+        return created, errors
+
     async def _get_delivery_by_sale(self, sale_id: uuid.UUID) -> Delivery | None:
         stmt = select(Delivery).where(Delivery.sale_id == sale_id)
         result = await self.session.execute(stmt)
