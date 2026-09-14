@@ -225,6 +225,23 @@ class SaleService:
         await self.session.flush()
         return sale
 
+    async def change_payment_method(
+        self, sale_id: uuid.UUID, payment_method: PaymentMethod
+    ) -> Sale:
+        """Corrige el medio de pago de una venta ya cobrada (total o
+        parcialmente), sin reabrir el resto de la venta a edicion (monto,
+        items, fecha, etc siguen bloqueados)."""
+        sale = await self.sale_repo.get_by_id_with_items(sale_id)
+        if not sale:
+            raise ValueError("Sale not found")
+        if sale.payment_method is None:
+            raise ValueError(
+                "Esta venta no tiene un pago registrado; no hay medio de pago que editar"
+            )
+        sale.payment_method = payment_method
+        await self.session.flush()
+        return sale
+
     async def assign_delivery(
         self, sale_id: uuid.UUID, delivery_employee_id: uuid.UUID
     ) -> Sale:

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent 
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import { toast } from 'sonner';
-import { Plus, ShoppingCart, FileText, Package, Trash2, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Cloud, Lock, Download, Printer, Coins, X, Upload, AlertCircle, CheckCircle2, FileSpreadsheet } from 'lucide-react';
+import { Plus, ShoppingCart, FileText, Package, Trash2, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Cloud, Lock, Download, Printer, Coins, X, Upload, AlertCircle, CheckCircle2, FileSpreadsheet, Pencil } from 'lucide-react';
 import ExportColumnsDialog from '@/components/shared/ExportColumnsDialog';
 import SearchableSelect from '@/components/shared/SearchableSelect';
 import type { ExportColumn } from '@/lib/exportExcel';
@@ -89,6 +89,10 @@ export default function Sales() {
   const [payMethod, setPayMethod] = useState('');
   const [payPartial, setPayPartial] = useState(false);
   const [payAmount, setPayAmount] = useState('');
+  const [editMethodOpen, setEditMethodOpen] = useState(false);
+  const [editMethodSaleId, setEditMethodSaleId] = useState<string | null>(null);
+  const [editMethodValue, setEditMethodValue] = useState('');
+  const [editMethodSaving, setEditMethodSaving] = useState(false);
   const [company, setCompany] = useState<CompanySettings | null>(null);
   const [clientSearch, setClientSearch] = useState('');
   const [clientDropOpen, setClientDropOpen] = useState(false);
@@ -262,6 +266,29 @@ export default function Sales() {
       toast.error(msg);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openEditMethod = (sale: Sale) => {
+    setEditMethodSaleId(sale.id);
+    setEditMethodValue(sale.payment_method || '');
+    setEditMethodOpen(true);
+  };
+
+  const handleChangeMethod = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editMethodSaleId || !editMethodValue) return;
+    setEditMethodSaving(true);
+    try {
+      await api.post(`/sales/${editMethodSaleId}/payment-method`, { payment_method: editMethodValue });
+      toast.success('Medio de pago actualizado');
+      setEditMethodOpen(false);
+      fetchData();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
+      toast.error(msg);
+    } finally {
+      setEditMethodSaving(false);
     }
   };
 
@@ -1224,7 +1251,16 @@ export default function Sales() {
                     <TableCell><Badge variant="outline">{paymentLabel[s.payment_type] || s.payment_type}</Badge></TableCell>
                     <TableCell>{s.delivery_employee_id ? (employees.find(e => e.id === s.delivery_employee_id)?.name || '-') : <span className="text-muted-foreground">Sin asignar</span>}</TableCell>
                     <TableCell><Badge variant={statusVariant(s.status)}>{statusLabel[s.status]}</Badge></TableCell>
-                    <TableCell>{s.payment_method ? methodLabel[s.payment_method] : '-'}</TableCell>
+                    <TableCell>
+                      {s.payment_method ? (
+                        <div className="flex items-center gap-1">
+                          <span>{methodLabel[s.payment_method]}</span>
+                          <Button size="sm" variant="ghost" className="h-5 w-5 p-0" title="Cambiar medio de pago" onClick={() => openEditMethod(s)}>
+                            <Pencil className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ) : '-'}
+                    </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         <Button size="sm" variant="ghost" onClick={() => setDetailSale(s)} title="Ver productos" className={`relative ${s.notes ? 'text-amber-600 hover:text-amber-700' : ''}`}>
@@ -1344,6 +1380,32 @@ export default function Sales() {
               </form>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editMethodOpen} onOpenChange={setEditMethodOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Cambiar medio de pago</DialogTitle></DialogHeader>
+          <form onSubmit={handleChangeMethod} className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Corrige el medio de pago con el que se cobro esta venta. El monto y los demas datos de la venta no cambian.
+            </p>
+            <div className="space-y-2">
+              <Label>Medio de pago</Label>
+              <Select value={editMethodValue || null} onValueChange={v => setEditMethodValue(sv(v))}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar">{(v: string) => methodLabel[v] || 'Seleccionar'}</SelectValue></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Efectivo</SelectItem>
+                  <SelectItem value="transfer">Transferencia</SelectItem>
+                  <SelectItem value="nequi">Nequi</SelectItem>
+                  <SelectItem value="daviplata">Daviplata</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <SubmitButton loading={editMethodSaving} className="w-full" disabled={!editMethodValue}>
+              Guardar
+            </SubmitButton>
+          </form>
         </DialogContent>
       </Dialog>
 
