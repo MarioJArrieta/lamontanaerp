@@ -226,6 +226,8 @@ class SaleService:
             raise ValueError(
                 "No se puede editar una venta ya facturada electronicamente ante la DIAN"
             )
+        if sale.date != bogota_today():
+            raise ValueError("Solo se pueden editar ventas del dia de hoy")
         for key, value in updates.items():
             if hasattr(sale, key):
                 setattr(sale, key, value)
@@ -247,6 +249,8 @@ class SaleService:
             raise ValueError(
                 "No se puede descobrar una venta ya facturada electronicamente ante la DIAN"
             )
+        if sale.date != bogota_today():
+            raise ValueError("Solo se pueden descobrar ventas del dia de hoy")
 
         sale.paid_amount = Decimal("0")
         sale.payment_method = None
