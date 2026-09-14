@@ -341,7 +341,7 @@ export default function Receivables() {
                       />
                     </TableCell>
                     <TableCell>{s.date}</TableCell>
-                    <TableCell className="font-medium">{clientMap.get(s.client_id)?.name || '-'}</TableCell>
+                    <TableCell className="font-medium max-w-[120px] truncate" title={clientMap.get(s.client_id)?.name}>{clientMap.get(s.client_id)?.name || '-'}</TableCell>
                     <TableCell className="text-xs">
                       {(s.items || []).slice(0, 2).map((item, i) => (
                         <span key={i}>{i > 0 && ', '}{item.quantity} {productMap.get(item.product_id)?.name || 'Producto'}</span>
@@ -542,7 +542,7 @@ export default function Receivables() {
                   <TableBody>
                     {historyData.map(s => (
                       <TableRow key={s.id}>
-                        <TableCell className="font-medium">{clientMap.get(s.client_id)?.name || '-'}</TableCell>
+                        <TableCell className="font-medium max-w-[120px] truncate" title={clientMap.get(s.client_id)?.name}>{clientMap.get(s.client_id)?.name || '-'}</TableCell>
                         <TableCell>{formatMoney(s.total)}</TableCell>
                         <TableCell className="font-semibold text-green-600">{formatMoney(s.paid_amount)}</TableCell>
                         <TableCell>
