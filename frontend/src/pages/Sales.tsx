@@ -1343,12 +1343,12 @@ export default function Sales() {
                         {s.status !== 'paid' && (
                           <Button size="sm" variant="default" onClick={() => openPayDialog(s.id)}>Pagar</Button>
                         )}
-                        {Number(s.paid_amount) === 0 && s.dian_status !== 'accepted' && (
+                        {s.date === today && Number(s.paid_amount) === 0 && s.dian_status !== 'accepted' && (
                           <Button size="sm" variant="outline" onClick={() => openEditSale(s)} title="Editar venta">
                             <Pencil className="w-3.5 h-3.5 mr-1" />Editar
                           </Button>
                         )}
-                        {Number(s.paid_amount) > 0 && s.dian_status !== 'accepted' && (
+                        {s.date === today && Number(s.paid_amount) > 0 && s.dian_status !== 'accepted' && (
                           <Button size="sm" variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-50" onClick={() => openUncollect(s.id)} title="Descobrar venta">
                             Descobrar
                           </Button>
