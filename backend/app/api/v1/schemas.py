@@ -416,6 +416,10 @@ class SaleUpdate(BaseModel):
     notes: str | None = None
 
 
+class SaleChangePaymentMethod(BaseModel):
+    payment_method: PaymentMethod
+
+
 class SaleAssignDelivery(BaseModel):
     delivery_employee_id: uuid.UUID
 

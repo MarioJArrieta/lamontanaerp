@@ -11,6 +11,7 @@ from app.api.v1.schemas import (
     SaleBulkPay,
     SaleBulkPayResponse,
     SaleBulkPaySkipped,
+    SaleChangePaymentMethod,
     SaleCreate,
     SaleDeleteConfirm,
     SaleMarkPaid,
@@ -106,6 +107,20 @@ async def update_sale(
     service = SaleService(db)
     try:
         return await service.update_sale(sale_id, body.model_dump(exclude_unset=True))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/{sale_id}/payment-method", response_model=SaleResponse)
+async def change_payment_method(
+    sale_id: uuid.UUID,
+    body: SaleChangePaymentMethod,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: AdminOrSecretary,
+):
+    service = SaleService(db)
+    try:
+        return await service.change_payment_method(sale_id, body.payment_method)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
