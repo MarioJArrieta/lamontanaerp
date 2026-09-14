@@ -312,6 +312,22 @@ class ProductionSummaryResponse(BaseModel):
     total_records: int
 
 
+class ProductionBulkPay(BaseModel):
+    production_ids: list[uuid.UUID] = Field(..., min_length=1)
+
+
+class ProductionBulkPaySkipped(BaseModel):
+    production_id: uuid.UUID
+    reason: str
+
+
+class ProductionBulkPayResponse(BaseModel):
+    paid: list[ProductionResponse] = []
+    skipped: list[ProductionBulkPaySkipped] = []
+    count_paid: int = 0
+    total_paid: Decimal = Decimal("0")
+
+
 # ---- Inventory ----
 class InventoryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

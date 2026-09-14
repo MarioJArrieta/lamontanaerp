@@ -5,7 +5,15 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.schemas import ProductionCreate, ProductionUpdate, ProductionResponse, ProductionSummaryResponse
+from app.api.v1.schemas import (
+    ProductionBulkPay,
+    ProductionBulkPayResponse,
+    ProductionBulkPaySkipped,
+    ProductionCreate,
+    ProductionResponse,
+    ProductionSummaryResponse,
+    ProductionUpdate,
+)
 from app.application.services.production_service import ProductionService
 from app.auth.dependencies import require_role
 from app.domain.aggregates.user import User
@@ -90,6 +98,22 @@ async def pay_production(
         return await service.pay_production(production_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/bulk-pay", response_model=ProductionBulkPayResponse)
+async def bulk_pay_production(
+    body: ProductionBulkPay,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: AdminUser,
+):
+    service = ProductionService(db)
+    paid, skipped, total_paid = await service.bulk_pay_production(body.production_ids)
+    return ProductionBulkPayResponse(
+        paid=[ProductionResponse.model_validate(p) for p in paid],
+        skipped=[ProductionBulkPaySkipped(production_id=pid, reason=reason) for pid, reason in skipped],
+        count_paid=len(paid),
+        total_paid=total_paid,
+    )
 
 
 @router.get("/summary", response_model=ProductionSummaryResponse)
