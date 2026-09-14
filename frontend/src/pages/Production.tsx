@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { toast } from 'sonner';
-import { Plus, Factory, Package, AlertTriangle, BarChart3, CheckCircle2, DollarSign, LoaderCircle, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Factory, Package, AlertTriangle, BarChart3, CheckCircle2, DollarSign, LoaderCircle, Pencil, Trash2, Search, Coins, X } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
 import StatCard from '@/components/shared/StatCard';
@@ -145,6 +146,65 @@ export default function Production() {
     }
   };
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+
+  // Depura la seleccion cuando cambia la produccion (tras pagar/eliminar):
+  // descarta ids que ya no existen o que quedaron pagadas.
+  useEffect(() => {
+    setSelectedIds(prev => {
+      if (prev.size === 0) return prev;
+      const selectable = new Set(productions.filter(p => !p.is_paid).map(p => p.id));
+      const next = new Set([...prev].filter(id => selectable.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [productions]);
+
+  const toggleSelect = (id: string) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  const setManySelected = (ids: string[], on: boolean) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    for (const id of ids) { if (on) next.add(id); else next.delete(id); }
+    return next;
+  });
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const estimatedPay = (p: ProductionType) => {
+    const employee = empMap.get(p.employee_id);
+    const ratePaca = Number(employee?.rate_per_paca || 0);
+    const rateBotellon = Number(employee?.rate_per_botellon || 0);
+    return p.pacas_produced * ratePaca + p.botellones_produced * rateBotellon;
+  };
+
+  const handleBulkPay = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    setBulkSaving(true);
+    try {
+      const { data } = await api.post('/production/bulk-pay', { production_ids: ids });
+      const paidCount = data.count_paid ?? 0;
+      const skipped = data.skipped?.length ?? 0;
+      toast.success(
+        `${paidCount} produccion${paidCount === 1 ? '' : 'es'} pagada${paidCount === 1 ? '' : 's'} · ${formatMoney(data.total_paid || 0)}`
+        + (skipped ? ` · ${skipped} omitida${skipped === 1 ? '' : 's'}` : ''),
+      );
+      setBulkOpen(false);
+      clearSelection();
+      fetchData();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
+      toast.error(msg);
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
   const empMap = new Map(employees.map(e => [e.id, e]));
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -259,6 +319,26 @@ export default function Production() {
         <StatCard title="Registros" value={filtered.length} icon={BarChart3} />
       </div>
 
+      {selectedIds.size > 0 && (() => {
+        const selectedProds = productions.filter(p => selectedIds.has(p.id));
+        const totalEstimated = selectedProds.reduce((sum, p) => sum + estimatedPay(p), 0);
+        return (
+          <div className="sticky top-2 z-10 mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 shadow-sm">
+            <Coins className="h-5 w-5 text-primary" />
+            <span className="text-sm font-medium">
+              {selectedIds.size} produccion{selectedIds.size === 1 ? '' : 'es'} seleccionada{selectedIds.size === 1 ? '' : 's'}
+              <span className="ml-2 text-muted-foreground">Total estimado: <span className="font-semibold text-foreground">{formatMoney(totalEstimated)}</span></span>
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <Button size="sm" variant="ghost" onClick={clearSelection}><X className="mr-1 h-3.5 w-3.5" />Limpiar</Button>
+              <Button size="sm" onClick={() => setBulkOpen(true)}>
+                <Coins className="mr-1 h-3.5 w-3.5" />Pagar seleccionadas
+              </Button>
+            </div>
+          </div>
+        );
+      })()}
+
       <Card>
         <CardContent className="p-0">
           {loading ? (
@@ -267,6 +347,22 @@ export default function Production() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    {(() => {
+                      const selectable = pg.data.filter(p => !p.is_paid).map(p => p.id);
+                      const allSel = selectable.length > 0 && selectable.every(id => selectedIds.has(id));
+                      const someSel = selectable.some(id => selectedIds.has(id));
+                      return (
+                        <Checkbox
+                          aria-label="Seleccionar todo"
+                          disabled={selectable.length === 0}
+                          checked={allSel}
+                          indeterminate={someSel && !allSel}
+                          onChange={e => setManySelected(selectable, e.target.checked)}
+                        />
+                      );
+                    })()}
+                  </TableHead>
                   <TableHead>Fecha</TableHead>
                   <TableHead>Empleado</TableHead>
                   <TableHead>Pacas</TableHead>
@@ -280,13 +376,21 @@ export default function Production() {
               <TableBody>
                 {pg.data.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       <Factory className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No hay produccion registrada</p>
                     </TableCell>
                   </TableRow>
                 ) : pg.data.map(p => (
-                  <TableRow key={p.id}>
+                  <TableRow key={p.id} className={selectedIds.has(p.id) ? 'bg-primary/5' : undefined}>
+                    <TableCell className="w-10">
+                      <Checkbox
+                        aria-label="Seleccionar produccion"
+                        disabled={p.is_paid}
+                        checked={selectedIds.has(p.id)}
+                        onChange={() => toggleSelect(p.id)}
+                      />
+                    </TableCell>
                     <TableCell>{p.date}</TableCell>
                     <TableCell className="font-medium">{empMap.get(p.employee_id)?.name || p.employee_id.slice(0, 8)}</TableCell>
                     <TableCell className="font-semibold">{p.pacas_produced}</TableCell>
@@ -328,6 +432,28 @@ export default function Production() {
           <Pagination page={pg.page} totalPages={pg.totalPages} totalItems={pg.totalItems} pageSize={pg.pageSize} onPageChange={setPage} />
         </CardContent>
       </Card>
+
+      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Pago masivo de produccion</DialogTitle></DialogHeader>
+          {(() => {
+            const selectedProds = productions.filter(p => selectedIds.has(p.id));
+            const totalEstimated = selectedProds.reduce((sum, p) => sum + estimatedPay(p), 0);
+            return (
+              <div className="space-y-4">
+                <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-1">
+                  <div className="flex justify-between"><span>Producciones seleccionadas:</span><span className="font-semibold">{selectedProds.length}</span></div>
+                  <div className="flex justify-between"><span>Total estimado a pagar:</span><span className="font-bold text-primary">{formatMoney(totalEstimated)}</span></div>
+                </div>
+                <p className="text-xs text-muted-foreground">Cada produccion se paga segun la tarifa por paca/botellon del empleado (igual que el pago individual). Las que ya esten pagadas se omiten.</p>
+                <SubmitButton loading={bulkSaving} className="w-full" disabled={selectedProds.length === 0} onClick={handleBulkPay}>
+                  Pagar {selectedProds.length} produccion{selectedProds.length === 1 ? '' : 'es'} · {formatMoney(totalEstimated)}
+                </SubmitButton>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Edit dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>

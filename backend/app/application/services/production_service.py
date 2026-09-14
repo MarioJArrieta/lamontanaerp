@@ -188,3 +188,27 @@ class ProductionService:
         await self.expense_repo.create(expense)
 
         return production
+
+    async def bulk_pay_production(
+        self, production_ids: list[uuid.UUID]
+    ) -> tuple[list[Production], list[tuple[uuid.UUID, str]], Decimal]:
+        """Paga en lote varias producciones (misma logica que pay_production,
+        una por una). Las ya pagadas o invalidas se omiten sin romper el lote.
+        Todo corre en el mismo request => atomico via el commit de get_db."""
+        paid: list[Production] = []
+        skipped: list[tuple[uuid.UUID, str]] = []
+        total_paid = Decimal("0")
+        # Dedup y orden canonico (por UUID) antes de tomar los locks
+        # (with_for_update en pay_production): sin un orden fijo, dos pagos
+        # masivos concurrentes con ids solapados podrian bloquearse entre si
+        # en sentido cruzado (deadlock) si cada uno pide las filas en un
+        # orden distinto.
+        for production_id in sorted(dict.fromkeys(production_ids)):
+            try:
+                production = await self.pay_production(production_id)
+            except ValueError as e:
+                skipped.append((production_id, str(e)))
+                continue
+            paid.append(production)
+            total_paid += production.payment_amount or Decimal("0")
+        return paid, skipped, total_paid
