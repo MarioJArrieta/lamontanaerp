@@ -125,6 +125,19 @@ async def change_payment_method(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
+@router.post("/{sale_id}/uncollect", response_model=SaleResponse)
+async def uncollect_sale(
+    sale_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: AdminOrSecretary,
+):
+    service = SaleService(db)
+    try:
+        return await service.uncollect_payment(sale_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
 @router.post("/{sale_id}/assign-delivery", response_model=SaleResponse)
 async def assign_delivery(
     sale_id: uuid.UUID,

@@ -217,11 +217,47 @@ class SaleService:
         sale = await self.sale_repo.get_by_id_with_items(sale_id)
         if not sale:
             raise ValueError("Sale not found")
-        if sale.status == SaleStatus.PAID:
-            raise ValueError("No se puede editar una venta ya cobrada")
+        if sale.paid_amount > Decimal("0"):
+            raise ValueError(
+                "No se puede editar una venta con pagos registrados; "
+                "descobra la venta primero"
+            )
+        if sale.dian_status == "accepted":
+            raise ValueError(
+                "No se puede editar una venta ya facturada electronicamente ante la DIAN"
+            )
         for key, value in updates.items():
             if hasattr(sale, key):
                 setattr(sale, key, value)
+        await self.session.flush()
+        return sale
+
+    async def uncollect_payment(self, sale_id: uuid.UUID) -> Sale:
+        """Revierte el cobro de una venta (total o parcial): resetea el pago
+        a cero y la deja Pendiente otra vez, para poder editarla o volver a
+        cobrarla. Si es a credito, revierte tambien la cuenta por cobrar
+        asociada a pendiente. No toca el estado de la entrega (delivery),
+        que es un concepto independiente de si ya se cobro o no."""
+        sale = await self.sale_repo.get_by_id_with_items(sale_id)
+        if not sale:
+            raise ValueError("Sale not found")
+        if sale.paid_amount <= Decimal("0"):
+            raise ValueError("Esta venta no tiene ningun pago registrado")
+        if sale.dian_status == "accepted":
+            raise ValueError(
+                "No se puede descobrar una venta ya facturada electronicamente ante la DIAN"
+            )
+
+        sale.paid_amount = Decimal("0")
+        sale.payment_method = None
+        sale.status = SaleStatus.PENDING
+
+        if sale.payment_type == PaymentType.CREDIT:
+            receivable = await self.receivable_repo.get_by_sale(sale.id)
+            if receivable:
+                receivable.status = ReceivableStatus.PENDING
+                receivable.paid_date = None
+
         await self.session.flush()
         return sale
 

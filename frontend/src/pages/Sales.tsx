@@ -93,6 +93,13 @@ export default function Sales() {
   const [editMethodSaleId, setEditMethodSaleId] = useState<string | null>(null);
   const [editMethodValue, setEditMethodValue] = useState('');
   const [editMethodSaving, setEditMethodSaving] = useState(false);
+  const [editSaleOpen, setEditSaleOpen] = useState(false);
+  const [editSaleId, setEditSaleId] = useState<string | null>(null);
+  const [editSaleForm, setEditSaleForm] = useState({ date: '', delivery_employee_id: '', notes: '' });
+  const [editSaleSaving, setEditSaleSaving] = useState(false);
+  const [uncollectOpen, setUncollectOpen] = useState(false);
+  const [uncollectSaleId, setUncollectSaleId] = useState<string | null>(null);
+  const [uncollectSaving, setUncollectSaving] = useState(false);
   const [company, setCompany] = useState<CompanySettings | null>(null);
   const [clientSearch, setClientSearch] = useState('');
   const [clientDropOpen, setClientDropOpen] = useState(false);
@@ -289,6 +296,58 @@ export default function Sales() {
       toast.error(msg);
     } finally {
       setEditMethodSaving(false);
+    }
+  };
+
+  const openEditSale = (sale: Sale) => {
+    setEditSaleId(sale.id);
+    setEditSaleForm({
+      date: sale.date,
+      delivery_employee_id: sale.delivery_employee_id || '',
+      notes: sale.notes || '',
+    });
+    setEditSaleOpen(true);
+  };
+
+  const handleEditSale = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editSaleId) return;
+    setEditSaleSaving(true);
+    try {
+      await api.put(`/sales/${editSaleId}`, {
+        date: editSaleForm.date,
+        delivery_employee_id: editSaleForm.delivery_employee_id || null,
+        notes: editSaleForm.notes || null,
+      });
+      toast.success('Venta actualizada');
+      setEditSaleOpen(false);
+      fetchData();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
+      toast.error(msg);
+    } finally {
+      setEditSaleSaving(false);
+    }
+  };
+
+  const openUncollect = (saleId: string) => {
+    setUncollectSaleId(saleId);
+    setUncollectOpen(true);
+  };
+
+  const handleUncollect = async () => {
+    if (!uncollectSaleId) return;
+    setUncollectSaving(true);
+    try {
+      await api.post(`/sales/${uncollectSaleId}/uncollect`);
+      toast.success('Venta descobrada, vuelve a estar pendiente');
+      setUncollectOpen(false);
+      fetchData();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
+      toast.error(msg);
+    } finally {
+      setUncollectSaving(false);
     }
   };
 
@@ -1284,6 +1343,16 @@ export default function Sales() {
                         {s.status !== 'paid' && (
                           <Button size="sm" variant="default" onClick={() => openPayDialog(s.id)}>Pagar</Button>
                         )}
+                        {Number(s.paid_amount) === 0 && s.dian_status !== 'accepted' && (
+                          <Button size="sm" variant="outline" onClick={() => openEditSale(s)} title="Editar venta">
+                            <Pencil className="w-3.5 h-3.5 mr-1" />Editar
+                          </Button>
+                        )}
+                        {Number(s.paid_amount) > 0 && s.dian_status !== 'accepted' && (
+                          <Button size="sm" variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-50" onClick={() => openUncollect(s.id)} title="Descobrar venta">
+                            Descobrar
+                          </Button>
+                        )}
                         {s.date === today && (
                           <Button size="sm" variant="ghost" className="text-destructive" onClick={() => openDeleteDialog(s.id)}>
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1405,6 +1474,48 @@ export default function Sales() {
             <SubmitButton loading={editMethodSaving} className="w-full" disabled={!editMethodValue}>
               Guardar
             </SubmitButton>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editSaleOpen} onOpenChange={setEditSaleOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Editar venta</DialogTitle></DialogHeader>
+          <form onSubmit={handleEditSale} className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Solo se pueden editar ventas sin ningun pago registrado. El cliente y los productos no se pueden cambiar aqui.
+            </p>
+            <div className="space-y-2">
+              <Label>Fecha</Label>
+              <Input type="date" value={editSaleForm.date} onChange={e => setEditSaleForm({...editSaleForm, date: e.target.value})} required />
+            </div>
+            <div className="space-y-2">
+              <Label>Repartidor</Label>
+              <Select value={editSaleForm.delivery_employee_id || null} onValueChange={v => setEditSaleForm({...editSaleForm, delivery_employee_id: sv(v)})}>
+                <SelectTrigger><SelectValue placeholder="Sin asignar">{(v: string) => deliveryEmployees.find(e => e.id === v)?.name || 'Sin asignar'}</SelectValue></SelectTrigger>
+                <SelectContent>
+                  {deliveryEmployees.map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Notas</Label>
+              <Input value={editSaleForm.notes} onChange={e => setEditSaleForm({...editSaleForm, notes: e.target.value})} />
+            </div>
+            <SubmitButton loading={editSaleSaving} className="w-full">Guardar cambios</SubmitButton>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={uncollectOpen} onOpenChange={setUncollectOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Descobrar venta</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Esta accion revierte el pago de la venta (total o parcial) y la deja Pendiente de nuevo, para poder corregirla o volver a cobrarla. Si es a credito, la cuenta por cobrar asociada tambien vuelve a quedar pendiente.
+          </p>
+          <form onSubmit={async e => { e.preventDefault(); await handleUncollect(); }} className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => setUncollectOpen(false)}>Cancelar</Button>
+            <SubmitButton loading={uncollectSaving} variant="destructive">Descobrar</SubmitButton>
           </form>
         </DialogContent>
       </Dialog>
