@@ -381,7 +381,7 @@ export default function Deliveries() {
                       <TableRow key={d.id} className={d.status === 'delivered' ? 'opacity-60' : ''}>
                         <TableCell>{d.date}</TableCell>
                         {!isDeliveryUser && <TableCell className="font-medium">{empMap.get(d.delivery_employee_id)?.name || '-'}</TableCell>}
-                        <TableCell>{client?.name || '-'}</TableCell>
+                        <TableCell className="max-w-[120px] truncate" title={client?.name}>{client?.name || '-'}</TableCell>
                         <TableCell>
                           {hasLocation ? (
                             <Button size="sm" variant="outline" onClick={() => openMapDialog(client!)}>
