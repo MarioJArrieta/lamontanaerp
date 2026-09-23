@@ -72,7 +72,11 @@ export default function Receivables() {
       api.get('/employees'),
       api.get('/products'),
     ]).then(([salesRes, clientsRes, empRes, prodRes]) => {
-      setSales(salesRes.data);
+      // Defensa por si queda alguna venta vieja con saldo residual < $1
+      // (redondeo de abonos parciales) atascada en pending/partial: ya no
+      // debe verse como cuenta por cobrar.
+      const withBalance = (salesRes.data as Sale[]).filter(s => Number(s.balance) >= 1);
+      setSales(withBalance);
       setClients(clientsRes.data);
       setEmployees(empRes.data);
       setProducts(prodRes.data);

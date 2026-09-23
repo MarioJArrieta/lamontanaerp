@@ -323,7 +323,13 @@ class SaleService:
         sale.paid_amount += pay_amount
         sale.payment_method = payment_method
 
-        if sale.paid_amount >= sale.total:
+        # El COP no maneja centavos en la practica (formatMoney redondea a
+        # peso entero), asi que un saldo residual menor a $1 por redondeo de
+        # abonos parciales se trata como saldado: si no, la venta se queda
+        # en "partial" para siempre con un saldo que en pantalla se ve en $0
+        # pero nunca es exactamente igual al total.
+        if sale.total - sale.paid_amount < Decimal("1"):
+            sale.paid_amount = sale.total
             sale.status = SaleStatus.PAID
         else:
             sale.status = SaleStatus.PARTIAL
