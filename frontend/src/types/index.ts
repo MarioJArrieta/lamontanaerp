@@ -6,6 +6,7 @@ export interface User {
   is_active: boolean;
   employee_id: string | null;
   created_at: string;
+  tenant_name?: string | null;
 }
 
 export interface Employee {

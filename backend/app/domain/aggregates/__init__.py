@@ -1,4 +1,5 @@
 from app.domain.aggregates.base import Base
+from app.domain.aggregates.tenant import LA_MONTANA_TENANT_ID, Tenant, TenantScoped
 from app.domain.aggregates.user import User
 from app.domain.aggregates.employee import Employee
 from app.domain.aggregates.product import Product
@@ -21,6 +22,9 @@ from app.domain.aggregates.quote_item import QuoteItem
 
 __all__ = [
     "Base",
+    "LA_MONTANA_TENANT_ID",
+    "Tenant",
+    "TenantScoped",
     "User",
     "Employee",
     "Product",

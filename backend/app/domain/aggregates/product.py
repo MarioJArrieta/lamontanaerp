@@ -4,10 +4,11 @@ from sqlalchemy import Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.aggregates.base import Base
+from app.domain.aggregates.tenant import TenantScoped
 from app.domain.enums import ProductType
 
 
-class Product(Base):
+class Product(TenantScoped, Base):
     __tablename__ = "products"
 
     name: Mapped[str] = mapped_column(String(100), nullable=False)

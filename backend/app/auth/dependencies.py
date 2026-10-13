@@ -9,9 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.domain.aggregates.client import Client
+from app.domain.aggregates.tenant import Tenant
 from app.domain.aggregates.user import User
 from app.domain.enums import UserRole
 from app.infrastructure.database import get_db
+from app.infrastructure.database.tenancy import set_tenant, skip_tenant_filter
 from app.infrastructure.repositories import ClientRepository, UserRepository
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -39,6 +41,10 @@ async def get_current_user(
     user = await repo.get_by_username(username)
     if user is None or not user.is_active:
         raise credentials_exception
+    tenant = await db.get(Tenant, user.tenant_id)
+    if tenant is None or not tenant.is_active:
+        raise credentials_exception
+    set_tenant(db, user.tenant_id)
     return user
 
 
@@ -64,6 +70,10 @@ async def get_current_client(
     except (JWTError, ValueError):
         raise credentials_exception
 
+    found = await db.get(Client, client_id, execution_options=skip_tenant_filter())
+    if found is None:
+        raise credentials_exception
+    set_tenant(db, found.tenant_id)
     repo = ClientRepository(db)
     client = await repo.get_by_id_with_prices(client_id)
     if client is None or not client.is_active:

@@ -12,6 +12,7 @@ import StatCard from '@/components/shared/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import api from '@/lib/api';
+import { getCompanyName } from '@/lib/auth';
 import type { Sale, Receivable, Inventory, Product } from '@/types';
 
 function formatMoney(val: string | number) {
@@ -54,7 +55,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      <PageHeader title="Dashboard" description="Resumen general de La Montana" />
+      <PageHeader title="Dashboard" description={`Resumen general de ${getCompanyName()}`} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard

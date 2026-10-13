@@ -6,9 +6,10 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.domain.aggregates.base import Base
+from app.domain.aggregates.tenant import TenantScoped
 
 
-class SaleItem(Base):
+class SaleItem(TenantScoped, Base):
     __tablename__ = "sale_items"
 
     sale_id: Mapped[uuid.UUID] = mapped_column(

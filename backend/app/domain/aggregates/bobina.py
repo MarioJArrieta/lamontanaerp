@@ -8,9 +8,10 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.aggregates.base import Base
+from app.domain.aggregates.tenant import TenantScoped
 
 
-class Bobina(Base):
+class Bobina(TenantScoped, Base):
     __tablename__ = "bobinas"
 
     code: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)

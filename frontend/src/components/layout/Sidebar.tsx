@@ -21,7 +21,7 @@ import {
   ChevronDown,
   FileSignature,
 } from 'lucide-react';
-import { clearAuth, getUser } from '@/lib/auth';
+import { clearAuth, getCompanyName, getUser } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 
@@ -134,7 +134,7 @@ export default function Sidebar() {
             <Droplets className="w-6 h-6 text-sidebar-primary-foreground" />
           </div>
           <div>
-            <h1 className="font-semibold text-base leading-tight">La Montana</h1>
+            <h1 className="font-semibold text-base leading-tight">{getCompanyName()}</h1>
             <p className="text-xs text-sidebar-foreground/60">Sistema ERP</p>
           </div>
         </div>

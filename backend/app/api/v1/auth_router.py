@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.schemas import LoginRequest, TokenResponse, UserCreate, UserResponse
 from app.application.services.auth_service import AuthService
 from app.auth.dependencies import get_current_user, require_role
+from app.domain.aggregates.tenant import Tenant
 from app.domain.aggregates.user import User
 from app.domain.enums import UserRole
 from app.infrastructure.database import get_db
@@ -30,8 +31,14 @@ async def login(
 
 
 @router.get("/me", response_model=UserResponse)
-async def me(current_user: Annotated[User, Depends(get_current_user)]):
-    return current_user
+async def me(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    tenant = await db.get(Tenant, current_user.tenant_id)
+    response = UserResponse.model_validate(current_user)
+    response.tenant_name = tenant.name if tenant else None
+    return response
 
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)

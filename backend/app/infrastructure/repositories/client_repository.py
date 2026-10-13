@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from app.domain.aggregates.client import Client
 from app.domain.aggregates.client_price import ClientPrice
+from app.infrastructure.database.tenancy import skip_tenant_filter
 from app.infrastructure.repositories.base_repository import BaseRepository
 
 
@@ -30,7 +31,8 @@ class ClientRepository(BaseRepository[Client]):
         return result.scalar_one_or_none()
 
     async def get_by_phone(self, phone: str) -> Client | None:
-        stmt = select(Client).where(Client.phone == phone)
+        # Global: se usa en el login de clientes, antes de conocer la empresa.
+        stmt = select(Client).where(Client.phone == phone).execution_options(**skip_tenant_filter())
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 

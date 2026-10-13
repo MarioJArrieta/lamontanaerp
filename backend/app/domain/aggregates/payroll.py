@@ -8,10 +8,11 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.domain.aggregates.base import Base
+from app.domain.aggregates.tenant import TenantScoped
 from app.domain.enums import PayPeriod, PayrollStatus
 
 
-class Payroll(Base):
+class Payroll(TenantScoped, Base):
     __tablename__ = "payrolls"
 
     employee_id: Mapped[uuid.UUID] = mapped_column(
@@ -34,7 +35,7 @@ class Payroll(Base):
     employee = relationship("Employee")
 
 
-class Advance(Base):
+class Advance(TenantScoped, Base):
     __tablename__ = "advances"
 
     employee_id: Mapped[uuid.UUID] = mapped_column(

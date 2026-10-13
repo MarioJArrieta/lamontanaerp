@@ -6,9 +6,10 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.domain.aggregates.base import Base
+from app.domain.aggregates.tenant import TenantScoped
 
 
-class ClientPrice(Base):
+class ClientPrice(TenantScoped, Base):
     __tablename__ = "client_prices"
     __table_args__ = (
         UniqueConstraint("client_id", "product_id", name="uq_client_product_price"),

@@ -7,10 +7,11 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.domain.aggregates.base import Base
+from app.domain.aggregates.tenant import TenantScoped
 from app.domain.enums import DeliveryStatus
 
 
-class Delivery(Base):
+class Delivery(TenantScoped, Base):
     __tablename__ = "deliveries"
 
     date: Mapped[date] = mapped_column(Date, nullable=False)

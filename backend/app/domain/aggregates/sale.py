@@ -8,13 +8,14 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.domain.aggregates.base import Base
+from app.domain.aggregates.tenant import TenantScoped
 from app.domain.enums import PaymentMethod, PaymentType, SaleStatus
 
 if TYPE_CHECKING:
     from app.domain.aggregates.sale_item import SaleItem
 
 
-class Sale(Base):
+class Sale(TenantScoped, Base):
     __tablename__ = "sales"
 
     date: Mapped[date] = mapped_column(Date, nullable=False)

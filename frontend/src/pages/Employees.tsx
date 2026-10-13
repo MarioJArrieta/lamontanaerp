@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { Plus, Users } from 'lucide-react';
 import { Pagination, paginate } from '@/components/ui/pagination';
 import PageHeader from '@/components/shared/PageHeader';
+import { getCompanyName } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -104,7 +105,7 @@ export default function Employees() {
     <div>
       <PageHeader
         title="Empleados"
-        description="Gestion de empleados de La Montana"
+        description={`Gestion de empleados de ${getCompanyName()}`}
         action={
           <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditId(null); setForm({ name: '', cedula: '', role: 'packer', pay_period: 'weekly', fixed_salary: '', rate_per_paca: '', rate_per_botellon: '', phone: '' }); } }}>
             <DialogTrigger>

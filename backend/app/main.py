@@ -24,7 +24,7 @@ from app.api.v1.loyalty_router import router as loyalty_router
 from app.api.v1.me_router import router as me_router
 from app.api.v1.quote_router import router as quote_router
 from app.config import get_settings
-from app.domain.aggregates import Base
+from app.domain.aggregates import LA_MONTANA_TENANT_ID, Base, TenantScoped
 from app.infrastructure.database import engine
 
 
@@ -157,8 +157,40 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await conn.execute(text(
             "ALTER TABLE sales ADD COLUMN IF NOT EXISTS dian_pdf_path VARCHAR(300)"
         ))
+        await _migrate_to_multi_tenant(conn)
     yield
     await engine.dispose()
+
+
+async def _migrate_to_multi_tenant(conn) -> None:
+    """Agrega tenant_id a las tablas existentes y asigna los datos previos a La Montana."""
+    await conn.execute(text(
+        "INSERT INTO tenants (id, name, slug, is_active) "
+        "VALUES (:id, 'La Montaña', 'la-montana', true) ON CONFLICT (id) DO NOTHING"
+    ), {"id": LA_MONTANA_TENANT_ID})
+    tables = sorted(
+        m.local_table.name for m in Base.registry.mappers if issubclass(m.class_, TenantScoped)
+    )
+    for table in tables:
+        await conn.execute(text(
+            f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id)"
+        ))
+        await conn.execute(text(
+            f"UPDATE {table} SET tenant_id = :id WHERE tenant_id IS NULL"
+        ), {"id": LA_MONTANA_TENANT_ID})
+        await conn.execute(text(f"ALTER TABLE {table} ALTER COLUMN tenant_id SET NOT NULL"))
+        await conn.execute(text(
+            f"CREATE INDEX IF NOT EXISTS ix_{table}_tenant_id ON {table} (tenant_id)"
+        ))
+    # Cedula/NIT pasan de ser unicos globales a unicos por empresa
+    await conn.execute(text("ALTER TABLE employees DROP CONSTRAINT IF EXISTS employees_cedula_key"))
+    await conn.execute(text("ALTER TABLE clients DROP CONSTRAINT IF EXISTS clients_cedula_nit_key"))
+    await conn.execute(text(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_employees_tenant_cedula ON employees (tenant_id, cedula)"
+    ))
+    await conn.execute(text(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_clients_tenant_cedula_nit ON clients (tenant_id, cedula_nit)"
+    ))
 
 
 settings = get_settings()
