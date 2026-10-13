@@ -14,6 +14,12 @@ export function setAuth(token: string, user: User) {
   localStorage.setItem('user', JSON.stringify(user));
 }
 
+// Nombre de la empresa del usuario logueado. Sesiones anteriores al multi-tenant
+// no traen tenant_name y solo podian ser de La Montana.
+export function getCompanyName(): string {
+  return getUser()?.tenant_name || 'La Montana';
+}
+
 export function clearAuth() {
   localStorage.removeItem('token');
   localStorage.removeItem('user');

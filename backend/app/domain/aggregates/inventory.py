@@ -6,10 +6,11 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.domain.aggregates.base import Base
+from app.domain.aggregates.tenant import TenantScoped
 from app.domain.enums import InventoryMovementType
 
 
-class Inventory(Base):
+class Inventory(TenantScoped, Base):
     __tablename__ = "inventory"
 
     product_id: Mapped[uuid.UUID] = mapped_column(
@@ -20,7 +21,7 @@ class Inventory(Base):
     product = relationship("Product")
 
 
-class InventoryMovement(Base):
+class InventoryMovement(TenantScoped, Base):
     __tablename__ = "inventory_movements"
 
     product_id: Mapped[uuid.UUID] = mapped_column(

@@ -8,10 +8,11 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.domain.aggregates.base import Base
+from app.domain.aggregates.tenant import TenantScoped
 from app.domain.enums import ReceivableStatus
 
 
-class Receivable(Base):
+class Receivable(TenantScoped, Base):
     __tablename__ = "receivables"
 
     sale_id: Mapped[uuid.UUID] = mapped_column(

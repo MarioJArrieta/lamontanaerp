@@ -6,10 +6,11 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.aggregates.base import Base
+from app.domain.aggregates.tenant import TenantScoped
 from app.domain.enums import LoyaltyTransactionType
 
 
-class LoyaltyTransaction(Base):
+class LoyaltyTransaction(TenantScoped, Base):
     __tablename__ = "loyalty_transactions"
 
     client_id: Mapped[uuid.UUID] = mapped_column(

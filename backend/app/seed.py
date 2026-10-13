@@ -21,7 +21,8 @@ from app.domain.enums import (
     UserRole,
 )
 from app.infrastructure.database import async_session_factory, engine
-from app.domain.aggregates import Base
+from app.domain.aggregates import LA_MONTANA_TENANT_ID, Base, Tenant
+from app.infrastructure.database.tenancy import set_tenant
 
 
 async def seed():
@@ -30,6 +31,11 @@ async def seed():
         await conn.run_sync(Base.metadata.create_all)
 
     async with async_session_factory() as session:
+        if await session.get(Tenant, LA_MONTANA_TENANT_ID) is None:
+            session.add(Tenant(id=LA_MONTANA_TENANT_ID, name="La Montaña", slug="la-montana"))
+            await session.flush()
+        set_tenant(session, LA_MONTANA_TENANT_ID)
+
         # ── Admin user ──
         auth_service = AuthService(session)
         try:
@@ -129,6 +135,7 @@ async def seed():
             client_tienda, _ = await client_service.create(
                 name="Tienda Don Jose",
                 client_type=ClientType.PERSON,
+                dian_id_type="13",
                 cedula_nit="900123456",
                 address="Calle 10 #5-20, Centro",
                 delivery_zone="Centro",
@@ -137,6 +144,7 @@ async def seed():
             client_supermercado, _ = await client_service.create(
                 name="Supermercado El Ahorro",
                 client_type=ClientType.COMPANY,
+                dian_id_type="31",
                 cedula_nit="900654321-1",
                 address="Carrera 15 #20-30",
                 delivery_zone="Norte",
@@ -146,6 +154,7 @@ async def seed():
             client_restaurante, _ = await client_service.create(
                 name="Restaurante La Esquina",
                 client_type=ClientType.COMPANY,
+                dian_id_type="31",
                 cedula_nit="900111222-3",
                 address="Avenida 5 #12-45",
                 delivery_zone="Sur",
@@ -154,6 +163,7 @@ async def seed():
             client_miscelanea, _ = await client_service.create(
                 name="Miscelanea Doña Rosa",
                 client_type=ClientType.PERSON,
+                dian_id_type="13",
                 cedula_nit="51234567",
                 address="Calle 3 #8-12, Barrio Nuevo",
                 delivery_zone="Centro",
@@ -162,6 +172,7 @@ async def seed():
             client_hotel, _ = await client_service.create(
                 name="Hotel Montaña Azul",
                 client_type=ClientType.COMPANY,
+                dian_id_type="31",
                 cedula_nit="900333444-5",
                 address="Km 3 Via al Lago",
                 delivery_zone="Rural",

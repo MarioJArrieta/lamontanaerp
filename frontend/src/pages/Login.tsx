@@ -40,7 +40,7 @@ export default function Login() {
           <div className="mx-auto w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mb-4">
             <Droplets className="w-8 h-8 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-semibold">La Montana ERP</h1>
+          <h1 className="text-2xl font-semibold">Sistema ERP</h1>
           <p className="text-muted-foreground text-sm">Inicia sesion para continuar</p>
         </CardHeader>
         <CardContent>

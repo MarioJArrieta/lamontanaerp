@@ -65,6 +65,7 @@ class UserResponse(BaseModel):
     is_active: bool
     employee_id: uuid.UUID | None = None
     created_at: datetime
+    tenant_name: str | None = None
 
 
 # ---- Employee ----

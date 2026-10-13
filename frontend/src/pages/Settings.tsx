@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import api from '@/lib/api';
+import { getToken, getUser, setAuth } from '@/lib/auth';
 import type { CompanySettings } from '@/types';
 
 export default function Settings() {
@@ -109,6 +110,10 @@ export default function Settings() {
       setApiKeyMasked(r.data?.dian_facturador_api_key_masked || null);
       setForm(f => ({ ...f, dian_facturador_api_key: '' }));
       setEditingApiKey(false);
+      // El nombre de la empresa es el que muestra el menu: actualizar la sesion guardada
+      const user = getUser();
+      const token = getToken();
+      if (user && token && r.data?.name) setAuth(token, { ...user, tenant_name: r.data.name });
       toast.success('Configuracion guardada');
     } catch {
       toast.error('Error al guardar');

@@ -8,13 +8,14 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.domain.aggregates.base import Base
+from app.domain.aggregates.tenant import TenantScoped
 from app.domain.enums import QuoteStatus
 
 if TYPE_CHECKING:
     from app.domain.aggregates.quote_item import QuoteItem
 
 
-class Quote(Base):
+class Quote(TenantScoped, Base):
     __tablename__ = "quotes"
 
     date: Mapped[date] = mapped_column(Date, nullable=False)

@@ -1,11 +1,14 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.aggregates.company_settings import CompanySettings
+from app.domain.aggregates.tenant import Tenant
+from app.infrastructure.database.tenancy import get_tenant
 from app.infrastructure.repositories import CompanySettingsRepository
 
 
 class CompanySettingsService:
     def __init__(self, session: AsyncSession) -> None:
+        self.session = session
         self.repo = CompanySettingsRepository(session)
 
     async def get(self) -> CompanySettings | None:
@@ -21,6 +24,12 @@ class CompanySettingsService:
         dian_facturador_url: str | None = None,
         dian_facturador_api_key: str | None = None,
     ) -> CompanySettings:
+        # El nombre de la empresa en Configuracion es tambien el que se muestra en el menu
+        tenant_id = get_tenant(self.session)
+        tenant = await self.session.get(Tenant, tenant_id) if tenant_id else None
+        if tenant:
+            tenant.name = name
+
         existing = await self.repo.get_settings()
         if existing:
             updates: dict = {

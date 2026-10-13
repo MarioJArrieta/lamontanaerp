@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { LogOut, Droplets } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { Toaster } from '@/components/ui/sonner';
-import { getUser, clearAuth } from '@/lib/auth';
+import { getUser, clearAuth, getCompanyName } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 
 function MobileHeader() {
@@ -19,7 +19,7 @@ function MobileHeader() {
         <div className="w-8 h-8 rounded-lg bg-sidebar-primary flex items-center justify-center">
           <Droplets className="w-4 h-4 text-sidebar-primary-foreground" />
         </div>
-        <span className="font-semibold text-sm">La Montana</span>
+        <span className="font-semibold text-sm">{getCompanyName()}</span>
       </div>
       <div className="flex items-center gap-3">
         <span className="text-xs text-sidebar-foreground/70">{user?.full_name}</span>

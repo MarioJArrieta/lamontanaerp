@@ -6,10 +6,11 @@ from sqlalchemy import Date, Numeric, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.aggregates.base import Base
+from app.domain.aggregates.tenant import TenantScoped
 from app.domain.enums import ExpenseCategory
 
 
-class Expense(Base):
+class Expense(TenantScoped, Base):
     __tablename__ = "expenses"
 
     date: Mapped[date] = mapped_column(Date, nullable=False)
